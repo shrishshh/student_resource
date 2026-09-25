@@ -1,0 +1,8 @@
+__MACOSX/
+dataset/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+submissions/**/*.tsv
+.pytest_cache/
