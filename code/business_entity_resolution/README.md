@@ -1,11 +1,11 @@
 # Business Entity Resolution — Amazon ML Challenge 2026
 
-> Stub: the pipeline (blocking -> matching -> output) is not built yet. This file will hold
-> the exact end-to-end reproduction steps.
+> Work in progress: normalisation + blocking v1 are done; pairwise features / matching
+> model / output generation are not built yet.
 
 ## Environment
 
-Python 3.13 (tested on Windows 11, CPU only).
+Python 3.13, CPU only (tested on Windows 11, 16 GB RAM).
 
 ```bash
 # from student_resource/
@@ -14,33 +14,41 @@ python -m venv .venv
 # .venv/bin/python -m pip install -r code/business_entity_resolution/requirements.txt     # Linux/macOS
 ```
 
-Expected data layout (not modified by any script):
+Data layout expected (never modified): `dataset/train/train_source{1,2,3}.tsv`,
+`dataset/train/train_ground_truth.tsv`, `dataset/test/test_source{1,2,3}.tsv`.
 
-```
-dataset/train/train_source{1,2,3}.tsv, dataset/train/train_ground_truth.tsv
-dataset/test/test_source{1,2,3}.tsv
-```
+## Reproduce (run from `code/business_entity_resolution/`)
+
+| Step | Command | Output | ~Time (16-thread laptop) |
+|---|---|---|---|
+| 0 | `python -m pytest tests -q` | — | 1 s |
+| 1 | `python -m src.translit` | `artifacts/translit_dict.json`, `artifacts/indic_state_map.json` (learned from train only) | 3 min |
+| 2 | `python -m src.normalize --split train` / `--split test` | `cache/{split}_records.parquet` | 18 / 9 min |
+| 3 | `python -m src.blocking generate --split train` | `cache/train_pairs_all_{country}.parquet` | ~15 min / country |
+| 4 | `python -m src.blocking tune` | `artifacts/blocking_budget.json` (chosen k, K) | few min |
+| 5 | `python -m src.blocking generate --split test` | `cache/test_pairs_all_{country}.parquet` | |
+| 6 | `python -m src.blocking prune --split train` / `--split test` | `cache/{split}_candidates.parquet` | |
+| 7 | `python -m src.norm_report`, `python -m src.blocking_report` | `reports/normalization_report.md`, `reports/blocking_report.md` | |
+
+Other: `python -m src.eda` (EDA report), `python -m src.make_empty_submission`.
+
+`cache/` is regenerable and git-ignored; `artifacts/` holds everything learned from train.
 
 ## Source layout (`src/`)
 
 | File | Purpose |
 |---|---|
-| `io_utils.py` | The single TSV reader used everywhere, split / ground-truth loaders, submission writer |
-| `metrics.py` | Entity-level and macro F0.5 (with per-country and singleton breakdowns) |
-| `text_norm.py` | Vectorised (pyarrow) name/address normalisation helpers |
-| `eda.py` | Exploratory analysis -> `reports/eda_report.md` |
-| `make_empty_submission.py` | All-empty submission (format sanity baseline) |
+| `resources.py` | Every hand-written rule list (legal forms, honorifics, markers, abbreviations, states/regions), country-keyed with a generic fallback |
+| `translit.py` | Rule-based Indic -> Latin transliteration (9 scripts, one offset table) + learned token dictionary and native-state map |
+| `normalize.py` | Generic cleaning (pyarrow) and name / address feature extraction |
+| `blocking.py` | DuckDB blocking keys, candidate pairs, quick scores, (k, K) tuning and pruning |
+| `norm_report.py`, `blocking_report.py` | Diagnostics reports |
+| `data.py` | Paths, loaders, integer ground-truth pairs |
+| `io_utils.py`, `metrics.py` | TSV reader / submission writer; macro F0.5 |
+| `eda.py`, `text_norm.py`, `make_empty_submission.py` | EDA and format sanity |
 
-## Commands (from `student_resource/`)
-
-```bash
-python -m pytest code/business_entity_resolution/tests -q
-python code/business_entity_resolution/src/eda.py                 # ~full EDA report
-python code/business_entity_resolution/src/make_empty_submission.py
-python utils/validate_submission.py --matching submissions/00_all_empty/matching_results.tsv \
-    --candidate submissions/00_all_empty/candidate_pairs.tsv --test-dir dataset/test
-```
+Records are addressed as `(src, idx)` = source number and 0-based row in that source file.
 
 ## Pipeline
 
-TODO: blocking, matching model, thresholding, output generation.
+TODO: pairwise features, matching model, thresholding, output generation.

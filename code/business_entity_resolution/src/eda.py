@@ -1,8 +1,8 @@
 """Exploratory data analysis -> reports/eda_report.md.
 
-Run from student_resource/:
-    python code/business_entity_resolution/src/eda.py                  # full data
-    python code/business_entity_resolution/src/eda.py --limit 200000   # quick debug run
+Run from code/business_entity_resolution/:
+    python -m src.eda                        # full data
+    python -m src.eda --limit 200000   # quick debug run
 
 Sections (letters match the report): A machine, B inventory, C provided docs,
 D integrity, E country labels, F sizes, G ground truth, H true-pair diagnostics,
@@ -45,10 +45,10 @@ from rapidfuzz import fuzz
 from rapidfuzz.process import cpdist
 from scipy.stats import spearmanr
 
-import text_norm as tn
-from io_utils import DATASET_DIR, PROJECT_ROOT, load_ground_truth, read_tsv
-from make_empty_submission import write_all_empty
-from metrics import macro_f05
+from . import text_norm as tn
+from .io_utils import DATASET_DIR, PROJECT_ROOT, load_ground_truth, read_tsv
+from .make_empty_submission import write_all_empty
+from .metrics import macro_f05
 
 SEED = 42
 REPORT_PATH = PROJECT_ROOT / "reports" / "eda_report.md"

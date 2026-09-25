@@ -1,7 +1,7 @@
 """Write an all-empty submission (format sanity check / trivial baseline).
 
-Usage (from student_resource/):
-    python code/business_entity_resolution/src/make_empty_submission.py [out_dir]
+Usage:
+    python -m src.make_empty_submission [out_dir]   (from code/business_entity_resolution/)
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from io_utils import DATASET_DIR, PROJECT_ROOT, read_tsv, write_id_lists
+from .io_utils import DATASET_DIR, PROJECT_ROOT, read_tsv, write_id_lists
 
 
 def write_all_empty(out_dir: str | Path, dataset_dir: str | Path = DATASET_DIR) -> int:

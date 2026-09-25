@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from metrics import entity_f05, macro_f05  # noqa: E402
+from src.metrics import entity_f05, macro_f05  # noqa: E402
 
 
 def test_official_example():

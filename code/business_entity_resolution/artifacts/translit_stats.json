@@ -1,0 +1,8 @@
+{
+ "train_pairs": 7638365,
+ "indic_name_pairs": 551240,
+ "indic_addr_pairs": 691568,
+ "distinct_indic_tokens_aligned": 1347,
+ "dict_size": 1318,
+ "state_map_size": 15
+}
