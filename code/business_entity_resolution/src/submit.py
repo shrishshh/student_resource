@@ -61,9 +61,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Write the test submission and the matcher report")
     ap.add_argument("--name", default="01_lgbm_v1")
     ap.add_argument("--tag", default="v1")
-    a = ap.parse_args()
-    name = a.name
-    rp = run_paths(a.tag)
+    args = ap.parse_args()
+    name = args.name
+    rp = run_paths(args.tag)
     PRED_DIR, PARTS_DIR, DECISION_PATH = rp["preds"], rp["parts"], rp["decision"]
     t0 = time.time()
     rng = random.Random(SEED)
@@ -137,7 +137,7 @@ def main() -> None:
         ex_lines += [f"### {c}: 15 random test S1 (accepted matches, then top-3 rejected candidates)", "",
                      md_table(["S1 id", "name", "address", "role", "record id", "q"], rows), ""]
 
-    sub_md = ["## 4. Test submission" if a.tag == "v1" else f"### Test submission (run `{a.tag}`)", "",
+    sub_md = ["## 4. Test submission" if args.tag == "v1" else f"### Test submission (run `{args.tag}`)", "",
               f"`submissions/{name}/` with decision `{cfg['d1']}` + `{cfg['d2']}` `{json.dumps(cfg['params'])}`: "
               f"{int(pred.sum()):,} matched pairs over {len(s1_ids_order):,} test S1; candidate_pairs.tsv lists "
               f"all {len(te):,} scored pairs.", "",
@@ -151,7 +151,7 @@ def main() -> None:
     (PARTS_DIR / "submit.md").write_text("\n".join(sub_md), encoding="utf-8")
     json.dump({"name": name, "validator_exit": vr.returncode, "matched_pairs": int(pred.sum()),
                "test_rows": test_rows, "train_rows": train_rows}, open(PARTS_DIR / "submit_stats.json", "w"), indent=1)
-    if a.tag != "v1":  # later runs are summarised in their own report
+    if args.tag != "v1":  # later runs are summarised in their own report
         log(f"{name}: report fragment written to {PARTS_DIR}")
         return
 

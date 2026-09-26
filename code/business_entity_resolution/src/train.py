@@ -107,10 +107,10 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="2-fold OOF LightGBM matcher")
     ap.add_argument("--tag", default="v1")
     ap.add_argument("--stage2", action="store_true")
-    a = ap.parse_args()
-    rp = run_paths(a.tag)
+    args = ap.parse_args()
+    rp = run_paths(args.tag)
     PRED_DIR, PARTS_DIR, MODEL_DIR = rp["preds"], rp["parts"], rp["models"]
-    if a.stage2:
+    if args.stage2:
         from .stage2 import augment
         AUGMENT = augment
     t0 = time.time()
@@ -201,8 +201,8 @@ def main() -> None:
              "calibration_worst_gap": worst, "isotonic": iso is not None, "n_features": len(feats)}
     (PARTS_DIR / "train_stats.json").write_text(json.dumps(stats, indent=1), encoding="utf-8")
     shown = {k: v for k, v in PARAMS.items() if k != "verbose"}
-    title = "## 2. Model (LightGBM, 2-fold out-of-fold)" if a.tag == "v1" else \
-        f"### Model (LightGBM, 2-fold out-of-fold{', stage 2' if a.stage2 else ''}; run `{a.tag}`)"
+    title = "## 2. Model (LightGBM, 2-fold out-of-fold)" if args.tag == "v1" else \
+        f"### Model (LightGBM, 2-fold out-of-fold{', stage 2' if args.stage2 else ''}; run `{args.tag}`)"
     lines = [title, "",
              f"{len(feats)} features. Params `{shown}`, up to {MAX_ROUNDS} rounds, early stopping {EARLY_STOP} "
              f"(logloss) on a 10% S1 hold-out. Each fold trains on a random {TRAIN_FRAC:.0%} of its half's S1s and "

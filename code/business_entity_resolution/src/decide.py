@@ -198,10 +198,10 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Decision layer search on OOF predictions")
     ap.add_argument("--tag", default="v1")
     ap.add_argument("--limited", action="store_true")
-    a = ap.parse_args()
-    rp = run_paths(a.tag)
+    args = ap.parse_args()
+    rp = run_paths(args.tag)
     parts_dir, decision_path = rp["parts"], rp["decision"]
-    d1_modes = ("odds",) if a.limited else ("odds", "none", "argmax")
+    d1_modes = ("odds",) if args.limited else ("odds", "none", "argmax")
     t0 = time.time()
     rng = random.Random(SEED)
     parts_dir.mkdir(parents=True, exist_ok=True)
@@ -215,7 +215,7 @@ def main() -> None:
     for mode in d1_modes:
         q = one_home(p, src, idx, mode)
         view = sorted_view(s1, q)
-        for method, params in grid(a.limited):
+        for method, params in grid(args.limited):
             r = sc.summary(predict(q, s1, method, params, view))
             results.append({"d1": mode, "d2": method, "params": params, **r})
         log(f"D1={mode}: best so far {max(x['overall'] for x in results):.5f}")
@@ -286,11 +286,11 @@ def main() -> None:
     hdr = ["D1", "D2", "params", "OOF F0.5", *countries, "singleton", "non-singleton"]
     best_per_family = res.loc[res.groupby(["d1", "d2"])["overall"].idxmax()].sort_values("overall", ascending=False)
     thr_rows = res[res["d2"].isin(["thr", "ef"])].sort_values(["d1", "d2", "overall"])
-    search = ("limited: odds + ef (gamma 0.85/1.0/1.2/1.5) and odds + two (t1 0.50-0.70, t2 0.60-0.80)" if a.limited
+    search = ("limited: odds + ef (gamma 0.85/1.0/1.2/1.5) and odds + two (t1 0.50-0.70, t2 0.60-0.80)" if args.limited
               else f"3 D1 x ({len(THRESHOLDS)} thresholds + {len(T1S) * len(T2S)} two-threshold pairs + "
                    f"{len(GAMMAS)} expected-F gammas)")
-    title = "## 3. Decision layer (tuned on OOF over all train S1)" if a.tag == "v1" else \
-        f"### Decision layer (run `{a.tag}`, tuned on OOF over all train S1)"
+    title = "## 3. Decision layer (tuned on OOF over all train S1)" if args.tag == "v1" else \
+        f"### Decision layer (run `{args.tag}`, tuned on OOF over all train S1)"
     lines = [title, "",
              f"{len(res)} configurations evaluated ({search}). S1s without candidates and true pairs "
              f"missing from the candidates ({missing_true:,}) count against recall.", "",
