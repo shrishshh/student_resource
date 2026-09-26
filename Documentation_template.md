@@ -9,11 +9,11 @@
 ## 1. Executive Summary
 A four-stage entity-resolution pipeline built only from the provided data: country-aware normalisation with a
 learned Indic-to-Latin transliteration dictionary; high-recall DuckDB blocking followed by a *learned* pruner
-that keeps a slim candidate set (~{{CANDS_TEST}} candidates per Source-1 entity on test); a two-stage LightGBM
+that keeps a slim candidate set (~5.4 candidates per Source-1 entity on test); a two-stage LightGBM
 matcher whose second stage sees group-consistency features (what the other candidates of the same S1 / record
 look like); and a decision layer that makes each S2/S3 record choose at most one home (odds renormalisation)
 and picks each S1's match set with an expected-F0.5 optimiser. Out-of-fold macro F0.5 on train:
-**{{OOF_FINAL}}** (stage 2), validated by 2-fold out-of-fold predictions by S1 and a leave-one-country-out check.
+**0.9764 (gamma 1.5; 0.9766 at gamma 1.0)** (stage 2), validated by 2-fold out-of-fold predictions by S1 and a leave-one-country-out check.
 
 ---
 
@@ -61,15 +61,15 @@ one-home, expected-F0.5 decision layer tuned directly on the leaderboard metric.
 - **Learned pruner** (`src/pruner.py`): LightGBM (300 trees, 63 leaves) trained on all unpruned pairs of 3% of
   train S1 with 28 cheap features (key-type bits, quick similarities, house-number agreement, empty-address
   flags, chain sizes, pre-pruning ranks and counts). **Slim candidates** (`src/slim.py`): keep a pair if pruner
-  p >= {{TAU}} and it is in the S1's top 15 and the record's top 3; tau chosen as the smallest set whose proxy
+  p >= 0.02 and it is in the S1's top 15 and the record's top 3; tau chosen as the smallest set whose proxy
   loss on our best model's decisions is <= 0.0007.
-- **Candidate pairs generated:** {{TRAIN_PAIRS}} train / {{TEST_PAIRS}} test; **{{CANDS_TRAIN}} / {{CANDS_TEST}}
-  candidates per S1** (mean; p95 {{P95_TRAIN}} / {{P95_TEST}}); pair recall {{RECALL}}; reduction ratio > 0.99999
+- **Candidate pairs generated:** 9,926,200 train / 9,412,340 test; **4.5 / 5.4
+  candidates per S1** (mean; p95 8 / 9); pair recall 96.66%; reduction ratio > 0.99999
   vs all same-country pairs.
 - **How you ensured true matches were not lost:** several independent key families (name, phonetic, prefix,
   alternate name, address, house number, name x address); the pruner learns to keep matches whose address is
   empty (86,974 of the 134,191 empty-address matches missed by score pruning were recovered); every budget was
-  chosen on train by the oracle macro F0.5 (predicting ground truth ∩ candidates): {{ORACLE}}.
+  chosen on train by the oracle macro F0.5 (predicting ground truth ∩ candidates): 0.98822 for the slim set (v1 score pruning: 0.98691).
 
 ---
 
@@ -108,9 +108,21 @@ probes showed the test set rewards more conservative decisions, so the submissio
 
 ## 5. Results & Error Analysis
 
-{{RESULTS_TABLE}}
+| Submission | Candidates | Model | Decision | OOF macro F0.5 (all / India / US) | Leaderboard |
+|---|---|---|---|---|---|
+| 00_all_empty | - | - | everything empty | 0.0558 | pending |
+| 01_lgbm_v1 | blocking v1 (~16/S1) | LightGBM stage 1 | odds + E[F0.5], gamma 1.0 | 0.9707 / 0.9638 / 0.9753 | pending |
+| 01b_gamma15 | blocking v1 | LightGBM stage 1 | gamma 1.5 | 0.9703 / 0.9635 / 0.9749 | (beat 01) |
+| 02_prune_v2 | learned pruner (~13/S1) | stage 1 | gamma 1.0 | 0.9730 / 0.9667 / 0.9773 | pending |
+| 03_stage2 | learned pruner | stage 2 | gamma 1.0 | 0.9773 / 0.9727 / 0.9804 | pending |
+| 04_s2_g15 **(final)** | slim (~5.4/S1 test) | stage 2 | gamma 1.5 | 0.9764 / 0.9714 / 0.9797 | pending |
+| 04_s2_g20 | slim (~5.4/S1 test) | stage 2 | gamma 2.0 | 0.9759 / 0.9708 / 0.9794 | pending |
+| 04_s2_g25 | slim (~5.4/S1 test) | stage 2 | gamma 2.5 | 0.9754 / 0.9701 / 0.9790 | pending |
+| 04_s1_g15 | slim (~5.4/S1 test) | stage 1 | gamma 1.5 | 0.9727 / 0.9661 / 0.9771 | pending |
+| 04_s1_g20 | slim (~5.4/S1 test) | stage 1 | gamma 2.0 | 0.9718 / 0.9649 / 0.9764 | pending |
+| 04_s2_g15_fr25 | slim (~5.4/S1 test) | stage 2 | gamma 1.5, France 2.5 | 0.9764 / 0.9714 / 0.9797 | pending |
 
-- **F_0.5 Score (macro):** OOF {{OOF_FINAL}} (stage 2, slim candidates); leave-one-country-out stand-in for an
+- **F_0.5 Score (macro):** OOF 0.9764 (gamma 1.5; 0.9766 at gamma 1.0) (stage 2, slim candidates); leave-one-country-out stand-in for an
   unseen country: US -> India 0.924, India -> US 0.956 (vs 0.964 / 0.975 when both are in training).
 - **Common false positives (wrong merges):** sibling businesses at the same address with a similar generic name
   (chains, "X Services" vs "X Consultants"), and records whose house number was jittered to a neighbour.

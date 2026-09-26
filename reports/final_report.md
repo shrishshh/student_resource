@@ -2,7 +2,7 @@
 
 **Chosen slim candidates: tau = 0.02** (S1 top-15, record top-3): 9,926,200 train / 9,412,340 test pairs, candidates per S1 4.5 train / 5.4 test (p95 8 / 9), pair recall 96.66%, oracle 0.98822, proxy loss 0.00059.
 
-Runtime per part (minutes): A 4, A_apply 1, B 67, C 12.
+Runtime per part (minutes): A 4, A_apply 1, B 67, C 12, D 1.
 
 ## Part A. Slim candidates
 
@@ -469,6 +469,67 @@ All: odds one-home + expected-F0.5 on the slim candidates; the same candidate_pa
 
 ## Part D. Final package
 
-*package.md: not run / failed (see notes).*
+Dry run: `python -m src.make_package --variant 04_s2_g15 --team TEAM` -> `TEAM_submission.zip`
+
+```
+uncompressed_bytes  compressed_bytes  path
+  100,389,819     43,120,094  output/matching_results.tsv
+  143,654,883     61,430,770  output/candidate_pairs.tsv
+          129            110  code/business_entity_resolution/src/__init__.py
+       23,689          7,374  code/business_entity_resolution/src/blocking.py
+       16,114          4,999  code/business_entity_resolution/src/blocking_report.py
+        4,646          1,978  code/business_entity_resolution/src/data.py
+       15,795          5,587  code/business_entity_resolution/src/decide.py
+       54,530         18,029  code/business_entity_resolution/src/eda.py
+       17,107          5,783  code/business_entity_resolution/src/features.py
+        5,638          2,108  code/business_entity_resolution/src/final_report.py
+        3,840          1,725  code/business_entity_resolution/src/io_utils.py
+        6,518          2,628  code/business_entity_resolution/src/loco.py
+        1,069            538  code/business_entity_resolution/src/make_empty_submission.py
+        2,342            994  code/business_entity_resolution/src/make_package.py
+        2,819          1,094  code/business_entity_resolution/src/metrics.py
+        8,968          3,260  code/business_entity_resolution/src/norm_report.py
+       16,362          5,960  code/business_entity_resolution/src/normalize.py
+        4,407          1,702  code/business_entity_resolution/src/probes.py
+       19,900          6,325  code/business_entity_resolution/src/pruner.py
+        6,370          2,411  code/business_entity_resolution/src/pseudo.py
+        9,407          4,024  code/business_entity_resolution/src/resources.py
+        3,476          1,454  code/business_entity_resolution/src/run_all.py
+       10,612          3,793  code/business_entity_resolution/src/slim.py
+        8,704          3,132  code/business_entity_resolution/src/stage2.py
+        9,512          3,481  code/business_entity_resolution/src/submit.py
+        2,750          1,300  code/business_entity_resolution/src/text_norm.py
+       12,130          4,549  code/business_entity_resolution/src/train.py
+       15,342          5,389  code/business_entity_resolution/src/translit.py
+        3,496          1,446  code/business_entity_resolution/src/v2_report.py
+        7,339          2,778  code/business_entity_resolution/src/variants.py
+        5,543          2,419  code/business_entity_resolution/README.md
+          415            264  code/business_entity_resolution/requirements.txt
+       11,928          5,220  Documentation_template.md
+TEAM_submission.zip: 99.8 MiB
+```
+
+Pipeline plan (`python -m src.run_all --variant 04_s2_g15 --dry-run`):
+
+```
+[run_all] translit: src.translit
+[run_all] normalize: src.normalize --split train
+[run_all] normalize: src.normalize --split test
+[run_all] blocking: src.blocking generate --split train
+[run_all] blocking: src.blocking generate --split test
+[run_all] pruner: src.pruner train
+[run_all] pruner: src.pruner score
+[run_all] pruner: src.pruner rank
+[run_all] pruner: src.pruner grid
+[run_all] pruner: src.pruner prune
+[run_all] slim: src.slim apply
+[run_all] features: src.features --split train
+[run_all] features: src.features --split test
+[run_all] stage1: src.train --tag v3s1
+[run_all] stage2f: src.stage2 --p-tag v3s1
+[run_all] stage2: src.train --tag v3s2 --stage2
+[run_all] output: src.variants --only 04_s2_g15 --out C:\Users\Shrish Singh Sourya\Downloads\6ab10eb3b23ba_student_resource\student_resource\output
+```
+
 
 *pseudo.md: not run / failed (see notes).*
