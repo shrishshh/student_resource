@@ -469,7 +469,7 @@ All: odds one-home + expected-F0.5 on the slim candidates; the same candidate_pa
 
 ## Part D. Final package
 
-Dry run: `python -m src.make_package --variant 04_s2_g15 --team TEAM` -> `TEAM_submission.zip`
+Dry run: `python -m src.make_package --variant 04_s2_g15 --team TEAM` -> `TEAM_submission.zip` (rebuilt after the documentation was filled in)
 
 ```
 uncompressed_bytes  compressed_bytes  path
