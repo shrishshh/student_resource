@@ -38,6 +38,8 @@ from .normalize import phon
 
 CHUNK = 3_000_000
 FEAT_DIR = CACHE / "features"
+# learned-pruner columns (blocking v2): used as features when the candidates carry them
+PRUNER_COLS = ["pscore", "prank_r", "prank_s", "prank_r_all", "prank_s_all"]
 _LEAD_ZERO = re.compile(r"\b0+(?=\d)")
 
 
@@ -143,6 +145,8 @@ class Records:
 def competition_table(split: str, country: str, out_path) -> int:
     """Candidate rows of one country plus competition features, ordered by (s1, rank_s)."""
     cand = (CACHE / f"{split}_candidates.parquet").as_posix()
+    extra = [c for c in PRUNER_COLS if c in pq.read_schema(cand).names]
+    extra_sql = "".join(f"{c}, " for c in extra)
     con = connect()
 
     def other_best(col: str) -> str:
@@ -155,7 +159,7 @@ def competition_table(split: str, country: str, out_path) -> int:
     con.execute(f"""
         COPY (
             SELECT s1, src, idx, bits, nkeys, sim_name, sim_addr, score, rank_r, rank_s, rank_r_all, rank_s_all,
-                   n_cand_s1, n_cand_rec,
+                   n_cand_s1, n_cand_rec, {extra_sql}
                    {other_best('sim_name')} AS r_oth_name,
                    {other_best('sim_addr')} AS r_oth_addr,
                    {other_best('score')} AS r_oth_score,
@@ -275,6 +279,9 @@ def chunk_features(R: Records, df) -> dict[str, np.ndarray]:
     for c in ("nkeys", "score", "sim_name", "sim_addr", "rank_r", "rank_s", "rank_r_all", "rank_s_all",
               "n_cand_s1", "n_cand_rec", "r_n_name90", "s_rank_name", "s_rank_addr", "s_gap_best", "s_n_near"):
         f[c] = df[c].to_numpy().astype(np.float32)
+    for c in PRUNER_COLS:
+        if c in df.columns:
+            f[c] = df[c].to_numpy().astype(np.float32)
     for c in ("name", "addr", "score"):
         other = df[f"r_oth_{c}"].to_numpy().astype(np.float32)  # NaN when r has no other candidate
         f[f"r_oth_{c}"] = other

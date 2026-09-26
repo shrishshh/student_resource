@@ -8,3 +8,4 @@ submissions/**/*.tsv
 .pytest_cache/
 cache/
 code/business_entity_resolution/artifacts/models/
+code/business_entity_resolution/artifacts/models_*/

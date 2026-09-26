@@ -1,7 +1,7 @@
 """Test submission + matcher report.
 
 Usage (from code/business_entity_resolution/, after src.decide):
-    python -m src.submit --name 01_lgbm_v1
+    python -m src.submit --name 01_lgbm_v1 [--tag v1]
 
 Applies artifacts/decision.json to the test predictions, writes
 submissions/<name>/{matching_results,candidate_pairs}.tsv (every test S1 in file
@@ -25,8 +25,8 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
-from .data import CACHE, REPORTS, SEED, log
-from .decide import DECISION_PATH, PARTS_DIR, PRED_DIR, one_home, predict
+from .data import CACHE, REPORTS, SEED, log, run_paths
+from .decide import one_home, predict
 from .eda import md_table
 from .features import FEAT_DIR
 from .io_utils import PROJECT_ROOT, write_id_lists
@@ -60,7 +60,11 @@ def sanity(df: pd.DataFrame, pred: np.ndarray, q: np.ndarray, s1_country: pd.Ser
 def main() -> None:
     ap = argparse.ArgumentParser(description="Write the test submission and the matcher report")
     ap.add_argument("--name", default="01_lgbm_v1")
-    name = ap.parse_args().name
+    ap.add_argument("--tag", default="v1")
+    a = ap.parse_args()
+    name = a.name
+    rp = run_paths(a.tag)
+    PRED_DIR, PARTS_DIR, DECISION_PATH = rp["preds"], rp["parts"], rp["decision"]
     t0 = time.time()
     rng = random.Random(SEED)
     cfg = json.loads(DECISION_PATH.read_text(encoding="utf-8"))
@@ -133,7 +137,7 @@ def main() -> None:
         ex_lines += [f"### {c}: 15 random test S1 (accepted matches, then top-3 rejected candidates)", "",
                      md_table(["S1 id", "name", "address", "role", "record id", "q"], rows), ""]
 
-    sub_md = ["## 4. Test submission", "",
+    sub_md = ["## 4. Test submission" if a.tag == "v1" else f"### Test submission (run `{a.tag}`)", "",
               f"`submissions/{name}/` with decision `{cfg['d1']}` + `{cfg['d2']}` `{json.dumps(cfg['params'])}`: "
               f"{int(pred.sum()):,} matched pairs over {len(s1_ids_order):,} test S1; candidate_pairs.tsv lists "
               f"all {len(te):,} scored pairs.", "",
@@ -145,6 +149,11 @@ def main() -> None:
               *ex_lines,
               f"Submission step {(time.time() - t0) / 60:.1f} min.", ""]
     (PARTS_DIR / "submit.md").write_text("\n".join(sub_md), encoding="utf-8")
+    json.dump({"name": name, "validator_exit": vr.returncode, "matched_pairs": int(pred.sum()),
+               "test_rows": test_rows, "train_rows": train_rows}, open(PARTS_DIR / "submit_stats.json", "w"), indent=1)
+    if a.tag != "v1":  # later runs are summarised in their own report
+        log(f"{name}: report fragment written to {PARTS_DIR}")
+        return
 
     # ---- assemble the matcher report
     fstats = {s: json.loads((FEAT_DIR / f"{s}_stats.json").read_text(encoding="utf-8")) for s in ("train", "test")}
@@ -164,9 +173,6 @@ def main() -> None:
                         for s in ("train", "test")]), ""]
     parts = [(PARTS_DIR / n).read_text(encoding="utf-8") for n in ("train.md", "decide.md", "submit.md")]
     (REPORTS / "matcher_report.md").write_text("\n".join(head) + "\n" + "\n".join(parts), encoding="utf-8")
-    json.dump({"name": name, "validator_exit": vr.returncode, "matched_pairs": int(pred.sum()),
-               "test_rows": test_rows, "train_rows": train_rows, "train_minutes": tstats["seconds"] / 60},
-              open(PARTS_DIR / "submit_stats.json", "w"), indent=1)
     log("wrote reports/matcher_report.md")
 
 

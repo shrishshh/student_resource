@@ -94,6 +94,15 @@ def gt_pairs(sources: dict | None = None) -> pd.DataFrame:
     return df
 
 
+def run_paths(tag: str) -> dict:
+    """Output locations of a matcher run (``v1`` keeps the original layout)."""
+    if tag == "v1":
+        return {"preds": CACHE / "preds", "parts": CACHE / "report_parts", "models": ARTIFACTS / "models",
+                "decision": ARTIFACTS / "decision.json"}
+    return {"preds": CACHE / f"preds_{tag}", "parts": CACHE / "report_parts" / tag,
+            "models": ARTIFACTS / f"models_{tag}", "decision": ARTIFACTS / f"decision_{tag}.json"}
+
+
 def read_records(split: str, columns: list[str] | None = None, country: str | None = None,
                  src: int | None = None) -> pd.DataFrame:
     """Read cache/{split}_records.parquet (optionally filtered by country / source)."""

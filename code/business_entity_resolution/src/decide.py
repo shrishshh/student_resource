@@ -1,7 +1,10 @@
 """Decision layer: pair probabilities -> predicted match set per S1.
 
 Usage (from code/business_entity_resolution/, after src.train):
-    python -m src.decide
+    python -m src.decide [--tag v1] [--limited]
+
+``--limited`` restricts the search to odds + ef (gamma 0.85/1.0/1.2/1.5) and odds + two
+(t1 0.50-0.70, t2 0.60-0.80).
 
 D1 (one-home, per record r):
     odds   q = odds(p) / (1 + sum of odds over r's candidates), p clipped to [1e-6, 1-1e-6]
@@ -20,6 +23,7 @@ implements exactly the rule of ``metrics.entity_f05``; the winner is re-scored w
 
 from __future__ import annotations
 
+import argparse
 import json
 import random
 import time
@@ -30,7 +34,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from .data import ARTIFACTS, CACHE, SEED, gt_pairs, log, peak_rss
+from .data import ARTIFACTS, CACHE, SEED, gt_pairs, log, peak_rss, run_paths
 from .eda import md_table, p2
 from .metrics import macro_f05
 
@@ -167,8 +171,13 @@ def predict(q: np.ndarray, s1: np.ndarray, method: str, params: dict, view=None)
     raise ValueError(method)
 
 
-def grid() -> list[tuple[str, dict]]:
-    """All D2 configurations."""
+def grid(limited: bool = False) -> list[tuple[str, dict]]:
+    """All D2 configurations (or the limited v2 search)."""
+    if limited:
+        out = [("ef", {"gamma": g}) for g in (0.85, 1.0, 1.2, 1.5)]
+        out += [("two", {"t1": float(a), "t2": float(b)}) for a in np.round(np.arange(0.50, 0.701, 0.05), 2)
+                for b in np.round(np.arange(0.60, 0.801, 0.05), 2)]
+        return out
     out = [("thr", {"t": float(t)}) for t in THRESHOLDS]
     out += [("two", {"t1": float(a), "t2": float(b)}) for a in T1S for b in T2S]
     out += [("ef", {"gamma": g}) for g in GAMMAS]
@@ -186,20 +195,27 @@ def load_truth():
 
 
 def main() -> None:
+    ap = argparse.ArgumentParser(description="Decision layer search on OOF predictions")
+    ap.add_argument("--tag", default="v1")
+    ap.add_argument("--limited", action="store_true")
+    a = ap.parse_args()
+    rp = run_paths(a.tag)
+    parts_dir, decision_path = rp["parts"], rp["decision"]
+    d1_modes = ("odds",) if a.limited else ("odds", "none", "argmax")
     t0 = time.time()
     rng = random.Random(SEED)
-    PARTS_DIR.mkdir(parents=True, exist_ok=True)
-    oof = pd.read_parquet(PRED_DIR / "train_oof.parquet")
+    parts_dir.mkdir(parents=True, exist_ok=True)
+    oof = pd.read_parquet(rp["preds"] / "train_oof.parquet")
     gt, t_all, s1_ids, s1_country = load_truth()
     s1, src, idx = oof["s1"].to_numpy(), oof["src"].to_numpy(), oof["idx"].to_numpy()
     p, label = oof["p"].to_numpy(), oof["label"].to_numpy().astype(bool)
     sc = Scorer(s1, label, t_all, s1_ids, s1_country)
     countries = sorted(set(s1_country))
     results = []
-    for mode in ("odds", "none", "argmax"):
+    for mode in d1_modes:
         q = one_home(p, src, idx, mode)
         view = sorted_view(s1, q)
-        for method, params in grid():
+        for method, params in grid(a.limited):
             r = sc.summary(predict(q, s1, method, params, view))
             results.append({"d1": mode, "d2": method, "params": params, **r})
         log(f"D1={mode}: best so far {max(x['overall'] for x in results):.5f}")
@@ -261,7 +277,7 @@ def main() -> None:
     del rt
     missing_true = len(gt) - int(label.sum())
 
-    DECISION_PATH.write_text(json.dumps({**cfg, "oof": {k: float(win[k]) for k in ["overall", *countries,
+    decision_path.write_text(json.dumps({**cfg, "oof": {k: float(win[k]) for k in ["overall", *countries,
                                                                                    "singleton", "non_singleton"]},
                                          "metrics_py_check": check["overall"], "ef_top": EF_TOP,
                                          "ef_min_q": EF_MIN_Q}, indent=1), encoding="utf-8")
@@ -270,9 +286,13 @@ def main() -> None:
     hdr = ["D1", "D2", "params", "OOF F0.5", *countries, "singleton", "non-singleton"]
     best_per_family = res.loc[res.groupby(["d1", "d2"])["overall"].idxmax()].sort_values("overall", ascending=False)
     thr_rows = res[res["d2"].isin(["thr", "ef"])].sort_values(["d1", "d2", "overall"])
-    lines = ["## 3. Decision layer (tuned on OOF over all train S1)", "",
-             f"{len(res)} configurations evaluated (3 D1 x ({len(THRESHOLDS)} thresholds + {len(T1S) * len(T2S)} "
-             f"two-threshold pairs + {len(GAMMAS)} expected-F gammas)). S1s without candidates and true pairs "
+    search = ("limited: odds + ef (gamma 0.85/1.0/1.2/1.5) and odds + two (t1 0.50-0.70, t2 0.60-0.80)" if a.limited
+              else f"3 D1 x ({len(THRESHOLDS)} thresholds + {len(T1S) * len(T2S)} two-threshold pairs + "
+                   f"{len(GAMMAS)} expected-F gammas)")
+    title = "## 3. Decision layer (tuned on OOF over all train S1)" if a.tag == "v1" else \
+        f"### Decision layer (run `{a.tag}`, tuned on OOF over all train S1)"
+    lines = [title, "",
+             f"{len(res)} configurations evaluated ({search}). S1s without candidates and true pairs "
              f"missing from the candidates ({missing_true:,}) count against recall.", "",
              f"**Winner: D1 = `{cfg['d1']}`, D2 = `{cfg['d2']}`, params `{json.dumps(cfg['params'])}` -> OOF macro "
              f"F0.5 {win['overall']:.5f}** (re-scored with `metrics.macro_f05`: {check['overall']:.5f}).", "",
@@ -288,8 +308,12 @@ def main() -> None:
              "15 random false positives:", "", md_table(err_hdr, fp_rows), "",
              "15 random false negatives (true pairs in the candidates that were rejected):", "", md_table(err_hdr, fn_rows), "",
              f"Decision search time {(time.time() - t0) / 60:.1f} min, peak RSS {peak_rss():.1f} GiB.", ""]
-    (PARTS_DIR / "decide.md").write_text("\n".join(lines), encoding="utf-8")
-    (PARTS_DIR / "decide_sizes.json").write_text(sizes.to_json(), encoding="utf-8")
+    (parts_dir / "decide.md").write_text("\n".join(lines), encoding="utf-8")
+    (parts_dir / "decide_sizes.json").write_text(sizes.to_json(), encoding="utf-8")
+    (parts_dir / "decide_stats.json").write_text(json.dumps(
+        {"oof": {k: float(win[k]) for k in ["overall", *countries, "singleton", "non_singleton"]},
+         "cfg": cfg, "fp": int(len(fp)), "fn_in_candidates": int(len(fn)), "missed_by_blocking": missing_true,
+         "tp": int((pred & label).sum()), "true_pairs": int(len(gt))}, indent=1), encoding="utf-8")
     log("decide done")
 
 

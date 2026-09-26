@@ -1,7 +1,10 @@
 """LightGBM matcher with out-of-fold predictions.
 
 Usage (from code/business_entity_resolution/, after src.features for train and test):
-    python -m src.train
+    python -m src.train [--tag v1] [--stage2]
+
+``--tag`` selects the output locations (data.run_paths); ``--stage2`` joins the stage-2
+group-consistency features and the stage-1 probability ``p1`` (src.stage2) to every part.
 
 * Train S1 entities are split into two halves by a CRC32 hash of the S1 entity id.
 * For each half h: a random 30% of h's S1s (seed 42) provide training pairs, 10% of
@@ -17,6 +20,7 @@ cache/report_parts/train.md and train_stats.json.
 
 from __future__ import annotations
 
+import argparse
 import json
 import pickle
 import time
@@ -29,7 +33,7 @@ import pyarrow.parquet as pq
 from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import log_loss, roc_auc_score
 
-from .data import ARTIFACTS, CACHE, SEED, log, peak_rss
+from .data import ARTIFACTS, CACHE, SEED, log, peak_rss, run_paths
 from .eda import md_table
 from .features import FEAT_DIR
 
@@ -64,11 +68,22 @@ def s1_halves() -> tuple[np.ndarray, np.ndarray]:
     return t.column("idx").to_numpy(), half
 
 
+AUGMENT = None  # optional fn(df, split, country, path) -> df with extra columns (stage 2)
+
+
+def read_part(split: str, country: str, path: str, columns: list[str] | None = None) -> pd.DataFrame:
+    """One feature part, optionally augmented with the stage-2 columns."""
+    if AUGMENT is None:
+        return pq.read_table(path, columns=columns).to_pandas()
+    df = AUGMENT(pq.read_table(path).to_pandas(), split, country, path)
+    return df if columns is None else df[columns]
+
+
 def load_rows(parts, s1_mask: np.ndarray, feats: list[str]) -> pd.DataFrame:
     """Rows (ids + label + features) whose S1 is selected by ``s1_mask`` (indexed by S1 idx)."""
     frames = []
-    for _, path in parts:
-        df = pq.read_table(path, columns=ID_COLS + feats).to_pandas()
+    for country, path in parts:
+        df = read_part("train", country, path, ID_COLS + feats)
         frames.append(df[s1_mask[df["s1"].to_numpy()]])
     return pd.concat(frames, ignore_index=True)
 
@@ -88,6 +103,16 @@ def calib_table(p: np.ndarray, y: np.ndarray) -> tuple[list[list], float]:
 
 
 def main() -> None:
+    global AUGMENT, PRED_DIR, PARTS_DIR, MODEL_DIR
+    ap = argparse.ArgumentParser(description="2-fold OOF LightGBM matcher")
+    ap.add_argument("--tag", default="v1")
+    ap.add_argument("--stage2", action="store_true")
+    a = ap.parse_args()
+    rp = run_paths(a.tag)
+    PRED_DIR, PARTS_DIR, MODEL_DIR = rp["preds"], rp["parts"], rp["models"]
+    if a.stage2:
+        from .stage2 import augment
+        AUGMENT = augment
     t0 = time.time()
     rng = np.random.default_rng(SEED)
     for d in (PRED_DIR, PARTS_DIR, MODEL_DIR):
@@ -95,7 +120,7 @@ def main() -> None:
     s1_idx, half = s1_halves()
     n_s1 = int(s1_idx.max()) + 1
     tr_parts, te_parts = feature_parts("train"), feature_parts("test")
-    feats = [c for c in pq.read_schema(tr_parts[0][1]).names if c not in ID_COLS]
+    feats = [c for c in read_part("train", tr_parts[0][0], tr_parts[0][1]).columns if c not in ID_COLS]
     log(f"{len(feats)} features, {len(tr_parts)} train parts, {len(te_parts)} test parts")
 
     fold_stats, models, oof_frames = [], [], []
@@ -123,7 +148,7 @@ def main() -> None:
         other = np.zeros(n_s1, bool)
         other[s1_idx[half != h]] = True
         for country, path in tr_parts:
-            df = pq.read_table(path).to_pandas()
+            df = read_part("train", country, path)
             df = df[other[df["s1"].to_numpy()]]
             p = booster.predict(df[feats].to_numpy(np.float32), num_iteration=booster.best_iteration)
             oof_frames.append(pd.DataFrame({"s1": df["s1"].to_numpy(), "src": df["src"].to_numpy(),
@@ -161,7 +186,7 @@ def main() -> None:
     log("predicting test (mean of the two fold models)")
     te_frames = []
     for country, path in te_parts:
-        df = pq.read_table(path).to_pandas()
+        df = read_part("test", country, path)
         x = df[feats].to_numpy(np.float32)
         p = np.mean([b.predict(x, num_iteration=b.best_iteration) for b in models], axis=0)
         te = pd.DataFrame({"s1": df["s1"].to_numpy(), "src": df["src"].to_numpy(), "idx": df["idx"].to_numpy(),
@@ -176,7 +201,9 @@ def main() -> None:
              "calibration_worst_gap": worst, "isotonic": iso is not None, "n_features": len(feats)}
     (PARTS_DIR / "train_stats.json").write_text(json.dumps(stats, indent=1), encoding="utf-8")
     shown = {k: v for k, v in PARAMS.items() if k != "verbose"}
-    lines = ["## 2. Model (LightGBM, 2-fold out-of-fold)", "",
+    title = "## 2. Model (LightGBM, 2-fold out-of-fold)" if a.tag == "v1" else \
+        f"### Model (LightGBM, 2-fold out-of-fold{', stage 2' if a.stage2 else ''}; run `{a.tag}`)"
+    lines = [title, "",
              f"{len(feats)} features. Params `{shown}`, up to {MAX_ROUNDS} rounds, early stopping {EARLY_STOP} "
              f"(logloss) on a 10% S1 hold-out. Each fold trains on a random {TRAIN_FRAC:.0%} of its half's S1s and "
              "predicts every pair of the other half; test = mean of both models.", "",
