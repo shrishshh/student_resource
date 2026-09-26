@@ -11,3 +11,9 @@ builds on (the run's own changes land in the next commit, named in "change").
 | 01c_france_empty | 2026-09-26 13:32 | a921e7c | LB probe: 01 with all 259,452 France S1 empty (01 had 13,079 of them empty); candidate_pairs unchanged | 0.97071 (= 01, France not in train) | 0.96381 | 0.97532 | pending |
 | 02_prune_v2 | 2026-09-26 20:44 | 5ad2ce7 | blocking v2 (learned pruner) + v1 matcher (limited decision search); decision odds+ef {"gamma": 1.0} | 0.97303 | 0.96668 | 0.97727 | pending |
 | 03_stage2 | 2026-09-26 20:44 | 5ad2ce7 | stage-2 LightGBM with group-consistency features on top of 02; decision odds+ef {"gamma": 1.0} | 0.97733 | 0.97267 | 0.98044 | pending |
+| 04_s2_g15 | 2026-09-27 02:59 | e8b7d59 | slim candidates; stage 2 (fold-consistent); odds + ef gamma 1.5; 6,048,656 test matches | 0.97639 | 0.97142 | 0.97970 | pending |
+| 04_s2_g20 | 2026-09-27 02:59 | e8b7d59 | slim candidates; stage 2 (fold-consistent); odds + ef gamma 2.0; 5,999,909 test matches | 0.97594 | 0.97080 | 0.97936 | pending |
+| 04_s2_g25 | 2026-09-27 02:59 | e8b7d59 | slim candidates; stage 2 (fold-consistent); odds + ef gamma 2.5; 5,963,432 test matches | 0.97544 | 0.97015 | 0.97897 | pending |
+| 04_s1_g15 | 2026-09-27 02:59 | e8b7d59 | slim candidates; stage 1; odds + ef gamma 1.5; 5,759,106 test matches | 0.97266 | 0.96606 | 0.97706 | pending |
+| 04_s1_g20 | 2026-09-27 02:59 | e8b7d59 | slim candidates; stage 1; odds + ef gamma 2.0; 5,720,848 test matches | 0.97181 | 0.96493 | 0.97640 | pending |
+| 04_s2_g15_fr25 | 2026-09-27 02:59 | e8b7d59 | slim candidates; stage 2 (fold-consistent); odds + ef gamma 1.5, France gamma 2.5; 6,036,227 test matches | 0.97639 | 0.97142 | 0.97970 | pending |
