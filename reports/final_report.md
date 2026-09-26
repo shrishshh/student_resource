@@ -2,7 +2,7 @@
 
 **Chosen slim candidates: tau = 0.02** (S1 top-15, record top-3): 9,926,200 train / 9,412,340 test pairs, candidates per S1 4.5 train / 5.4 test (p95 8 / 9), pair recall 96.66%, oracle 0.98822, proxy loss 0.00059.
 
-Runtime per part (minutes): A 4, A_apply 1, B 67, C 12, D 1.
+Runtime per part (minutes): A 4, A_apply 1, B 67, C 12, D 1, E 11.
 
 ## Part A. Slim candidates
 
@@ -532,4 +532,14 @@ Pipeline plan (`python -m src.run_all --variant 04_s2_g15 --dry-run`):
 ```
 
 
-*pseudo.md: not run / failed (see notes).*
+## Part E. Pseudo-labelling check (target country as a stand-in for France)
+
+Stage-1 slim features. Source US: 30% S1 sample (1,613,548 pairs). Pseudo labels on the pairs of a random 30% of India's S1: p >= 0.97 -> 1, p <= 0.03 -> 0, others dropped (979,287 pairs, 0.8293 positive, 98.27% agree with the true labels). Scored on ALL India pairs with the true labels, decision odds + ef gamma 1.0.
+
+| model | rounds | India macro F0.5 | singleton | non-singleton |
+|---|---|---|---|---|
+| US only | 1378 | 0.93715 | 0.8091 | 0.9447 |
+| US + pseudo-labelled India | 1309 | 0.93757 | 0.8145 | 0.9449 |
+
+Change: +0.00042. Runtime 11.3 min, peak RSS 5.5 GiB. No submission was changed.
+
