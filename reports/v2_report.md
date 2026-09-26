@@ -14,7 +14,11 @@ Loss split (train pairs): true pairs never in the candidates / true pairs reject
 |---|---|---|---|
 | v1 | 290,922 | 208,272 | 50,186 |
 
-Runtime per part (minutes): B 40, C 98.
+Runtime per part (minutes): B 40, C 98, D 87.
+
+Notes:
+
+- Part D failed at: === 19:38:19 src.decide --tag v2 --limited. Tail:     search = ("limited: odds + ef (gamma 0.85/1.0/1.2/1.5) and odds + two (t1 0.50-0.70, t2 0.60-0.80)" if a.limited                                                                                                            ^^^^^^^^^ AttributeError: 'int' object has no attribute 'limited' 
 
 ## Part B. Leave-one-country-out (v1 features, fixed decision odds + ef gamma 1.0)
 
@@ -79,7 +83,113 @@ Timing (min): train 5.1, score 71.2, rank 12.4, grid 4.1, prune 4.4; Part C tota
 
 ## Part D. Matcher on the v2 candidates -> submissions/02_prune_v2/
 
-*train.md: not run / failed (see notes).*
+### Model (LightGBM, 2-fold out-of-fold; run `v2`)
+
+77 features. Params `{'objective': 'binary', 'metric': 'binary_logloss', 'num_leaves': 127, 'learning_rate': 0.05, 'min_data_in_leaf': 200, 'feature_fraction': 0.8, 'bagging_fraction': 0.8, 'bagging_freq': 1, 'lambda_l2': 1.0, 'seed': 42, 'deterministic': True, 'force_col_wise': True, 'num_threads': 16}`, up to 3000 rounds, early stopping 100 (logloss) on a 10% S1 hold-out. Each fold trains on a random 30% of its half's S1s and predicts every pair of the other half; test = mean of both models.
+
+| model | trained on half | rounds | train S1 | train pairs | early-stop S1 |
+|---|---|---|---|---|---|
+| 0 | 0 | 1679 | 298,355 | 3,785,758 | 32,762 |
+| 1 | 1 | 1615 | 298,083 | 3,786,317 | 33,176 |
+
+OOF metrics (model h predicts the other half; raw p before any isotonic step):
+
+| model | country | pairs | AUC | logloss |
+|---|---|---|---|---|
+| 0 | ALL | 14,006,887 | 0.99912 | 0.02989 |
+| 0 | India | 5,650,560 | 0.99882 | 0.03401 |
+| 0 | US | 8,356,327 | 0.99928 | 0.02711 |
+| 1 | ALL | 14,016,143 | 0.99912 | 0.02996 |
+| 1 | India | 5,654,715 | 0.99881 | 0.03407 |
+| 1 | US | 8,361,428 | 0.99928 | 0.02717 |
+
+Calibration of OOF p (10 bins). Worst gap 0.0187 -> isotonic not needed.
+
+| bin | pairs | mean p | positive rate | gap |
+|---|---|---|---|---|
+| 0.0-0.1 | 20,107,767 | 0.0029 | 0.0031 | -0.0002 |
+| 0.1-0.2 | 250,838 | 0.1441 | 0.1500 | -0.0059 |
+| 0.2-0.3 | 137,597 | 0.2461 | 0.2484 | -0.0023 |
+| 0.3-0.4 | 93,558 | 0.3462 | 0.3401 | +0.0060 |
+| 0.4-0.5 | 74,833 | 0.4502 | 0.4456 | +0.0046 |
+| 0.5-0.6 | 61,103 | 0.5468 | 0.5281 | +0.0187 |
+| 0.6-0.7 | 48,511 | 0.6504 | 0.6467 | +0.0037 |
+| 0.7-0.8 | 62,701 | 0.7535 | 0.7611 | -0.0076 |
+| 0.8-0.9 | 116,959 | 0.8568 | 0.8629 | -0.0062 |
+| 0.9-1.0 | 7,069,163 | 0.9965 | 0.9969 | -0.0004 |
+
+Top-30 features by gain, model 0:
+
+| feature | gain |
+|---|---|
+| pscore | 24,601,264 |
+| r_margin_score | 3,524,700 |
+| prank_r | 1,629,670 |
+| house_logdiff | 1,446,675 |
+| nums_jaccard | 465,634 |
+| name_cov_r | 320,954 |
+| nums_frac_s_in_r | 223,787 |
+| addr_cov_r | 197,089 |
+| name_len_diff | 157,770 |
+| addr_ntok_r | 119,289 |
+| addr_tsr | 114,643 |
+| s_n_near | 108,415 |
+| r_margin_addr | 102,541 |
+| name_first_tok | 102,501 |
+| prank_s | 93,053 |
+| addr_cov_s | 87,028 |
+| name_ntok_r | 80,651 |
+| addr_partial | 70,801 |
+| addr_tsort | 68,994 |
+| r_oth_addr | 68,756 |
+| chain_s | 66,380 |
+| addr_ntok_s | 64,940 |
+| name_cov_s | 64,766 |
+| r_oth_score | 62,978 |
+| sim_addr | 60,179 |
+| s_rank_addr | 50,150 |
+| name_jw | 49,307 |
+| rank_s_all | 47,899 |
+| name_partial | 46,550 |
+| rank_s | 44,902 |
+
+Top-30 features by gain, model 1:
+
+| feature | gain |
+|---|---|
+| pscore | 24,625,293 |
+| r_margin_score | 3,027,245 |
+| prank_r | 1,628,781 |
+| house_logdiff | 1,433,792 |
+| prank_r_all | 507,880 |
+| nums_jaccard | 467,884 |
+| name_cov_r | 289,984 |
+| nums_frac_s_in_r | 221,848 |
+| addr_cov_r | 197,514 |
+| name_len_diff | 152,666 |
+| addr_ntok_r | 114,122 |
+| addr_tsr | 113,991 |
+| name_first_tok | 104,912 |
+| s_n_near | 103,602 |
+| r_margin_addr | 100,701 |
+| prank_s | 91,885 |
+| addr_cov_s | 84,308 |
+| name_ntok_r | 82,504 |
+| sim_addr | 73,617 |
+| addr_partial | 71,527 |
+| name_tsort | 71,039 |
+| name_cov_s | 68,680 |
+| addr_tsort | 67,155 |
+| r_oth_addr | 66,509 |
+| addr_ntok_s | 65,795 |
+| chain_s | 63,836 |
+| r_oth_score | 63,768 |
+| s_rank_addr | 52,972 |
+| score | 50,516 |
+| name_jw | 49,490 |
+
+Training + prediction: 58.3 min, peak RSS 6.7 GiB.
+
 
 *decide.md: not run / failed (see notes).*
 
