@@ -2,7 +2,7 @@
 
 **Chosen slim candidates: tau = 0.02** (S1 top-15, record top-3): 9,926,200 train / 9,412,340 test pairs, candidates per S1 4.5 train / 5.4 test (p95 8 / 9), pair recall 96.66%, oracle 0.98822, proxy loss 0.00059.
 
-Runtime per part (minutes): A 4, A_apply 1, B 67.
+Runtime per part (minutes): A 4, A_apply 1, B 67, C 12.
 
 ## Part A. Slim candidates
 
@@ -453,7 +453,19 @@ Error analysis: 27,580 false-positive pairs, 154,422 false-negative pairs among 
 Decision search time 1.9 min, peak RSS 6.7 GiB.
 
 
-*variants.md: not run / failed (see notes).*
+## Part C. Submission variants (decision layer only)
+
+All: odds one-home + expected-F0.5 on the slim candidates; the same candidate_pairs.tsv. OOF = macro F0.5 over all train S1 (France overrides have no train effect).
+
+| variant | stage | gamma | override | OOF | OOF India | OOF US | test matches | mean set size France | mean set size India | mean set size US | validator --check-ids |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 04_s2_g15 | s2 | 1.5 | - | 0.97639 | 0.97142 | 0.97970 | 6,048,656 | 3.568 | 3.388 | 3.587 | PASS |
+| 04_s2_g20 | s2 | 2.0 | - | 0.97594 | 0.97080 | 0.97936 | 5,999,909 | 3.540 | 3.362 | 3.556 | PASS |
+| 04_s2_g25 | s2 | 2.5 | - | 0.97544 | 0.97015 | 0.97897 | 5,963,432 | 3.520 | 3.343 | 3.533 | PASS |
+| 04_s1_g15 | s1 | 1.5 | - | 0.97266 | 0.96606 | 0.97706 | 5,759,106 | 3.411 | 3.275 | 3.350 | PASS |
+| 04_s1_g20 | s1 | 2.0 | - | 0.97181 | 0.96493 | 0.97640 | 5,720,848 | 3.395 | 3.248 | 3.332 | PASS |
+| 04_s2_g15_fr25 | s2 | 1.5 | {"France": 2.5} | 0.97639 | 0.97142 | 0.97970 | 6,036,227 | 3.520 | 3.388 | 3.587 | PASS |
+
 
 ## Part D. Final package
 
