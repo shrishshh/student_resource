@@ -255,7 +255,7 @@ def step_prune(split: str) -> None:
     k, K = budget["k"], budget["K"]
     V1_DIR.mkdir(parents=True, exist_ok=True)
     cur = CACHE / f"{split}_candidates.parquet"
-    if not (V1_DIR / cur.name).exists():
+    if cur.exists() and not (V1_DIR / cur.name).exists():
         shutil.move(str(cur), str(V1_DIR / cur.name))
     con = connect()
     parts = []

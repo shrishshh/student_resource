@@ -186,11 +186,22 @@ def main() -> None:
     log("predicting test (mean of the two fold models)")
     te_frames = []
     for country, path in te_parts:
-        df = read_part("test", country, path)
-        x = df[feats].to_numpy(np.float32)
-        p = np.mean([b.predict(x, num_iteration=b.best_iteration) for b in models], axis=0)
+        ps = []
+        for h, b in enumerate(models):
+            if AUGMENT is None:
+                if h == 0:
+                    df = read_part("test", country, path)
+                    x = df[feats].to_numpy(np.float32)
+            else:
+                # fold-consistent stage 2: model h was trained on features built from the OTHER
+                # stage-1 model's p, so its test features use that model's test p (variant test_m{1-h})
+                df = AUGMENT(pq.read_table(path).to_pandas(), "test", country, path, variant=f"test_m{1 - h}")
+                x = df[feats].to_numpy(np.float32)
+            ps.append(b.predict(x, num_iteration=b.best_iteration))
+        p = np.mean(ps, axis=0)
         te = pd.DataFrame({"s1": df["s1"].to_numpy(), "src": df["src"].to_numpy(), "idx": df["idx"].to_numpy(),
-                           "country": country, "p": p.astype(np.float32)})
+                           "country": country, "p": p.astype(np.float32),
+                           "p_m0": ps[0].astype(np.float32), "p_m1": ps[1].astype(np.float32)})
         if iso is not None:
             te["p_raw"] = te["p"]
             te["p"] = iso.predict(p).astype(np.float32)

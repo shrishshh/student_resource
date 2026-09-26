@@ -51,14 +51,19 @@ def _others(key: str, name: str) -> str:
              ELSE max(p) OVER ({w}) END AS s_oth_{name}_maxp"""
 
 
-def build(split: str, p_tag: str) -> None:
-    """Stage-2 features for every candidate pair of a split."""
+def build(split: str, p_tag: str, variant: str | None = None, p_col: str = "p") -> None:
+    """Stage-2 features for every candidate pair of a split.
+
+    Train uses the out-of-fold stage-1 p. For test, ``variant`` = ``test_m0`` / ``test_m1``
+    builds the features from one stage-1 model's test p (column ``p_m0`` / ``p_m1``), so that
+    each stage-2 model sees test inputs built like its training inputs (fold-consistent).
+    """
     t0 = time.time()
     rp = run_paths(p_tag)
     p_file = rp["preds"] / ("train_oof.parquet" if split == "train" else "test.parquet")
     rec = (CACHE / f"{split}_records.parquet").as_posix()
     cand = (CACHE / f"{split}_candidates.parquet").as_posix()
-    out_dir = OUT / split
+    out_dir = OUT / (variant or split)
     shutil.rmtree(out_dir, ignore_errors=True)
     out_dir.mkdir(parents=True, exist_ok=True)
     con = connect()
@@ -68,7 +73,7 @@ def build(split: str, p_tag: str) -> None:
             WHERE src <> 1 AND house_num IS NOT NULL GROUP BY ALL;
         CREATE TABLE g_na AS SELECT name_core, addr_core, count(*) AS n FROM read_parquet('{rec}')
             WHERE src <> 1 AND addr_core <> '' GROUP BY ALL;
-        CREATE TABLE p AS SELECT s1, src, idx, p FROM read_parquet('{p_file.as_posix()}');
+        CREATE TABLE p AS SELECT s1, src, idx, {p_col} AS p FROM read_parquet('{p_file.as_posix()}');
     """)
     for country in country_list(split):
         c = country.replace("'", "''")
@@ -123,19 +128,22 @@ def build(split: str, p_tag: str) -> None:
         pq.write_table(tbl, path, row_group_size=CHUNK, compression="zstd")
         n = tbl.num_rows
         del tbl
-        log(f"stage2 {split}/{country}: {n:,} rows")
+        log(f"stage2 {variant or split}/{country}: {n:,} rows")
     con.close()
     shutil.rmtree(CACHE / "duckdb_tmp", ignore_errors=True)
-    log(f"stage2 {split}: {(time.time() - t0) / 60:.1f} min, peak {peak_rss():.1f} GiB")
+    log(f"stage2 {variant or split}: {(time.time() - t0) / 60:.1f} min, peak {peak_rss():.1f} GiB")
 
 
 _PART_RE = re.compile(r"part-(\d+)\.parquet$")
 
 
-def augment(df: pd.DataFrame, split: str, country: str, path: str) -> pd.DataFrame:
-    """Attach the stage-2 columns (incl. p1) to one stage-1 feature part."""
+def augment(df: pd.DataFrame, split: str, country: str, path: str, variant: str | None = None) -> pd.DataFrame:
+    """Attach the stage-2 columns (incl. p1) to one stage-1 feature part.
+
+    ``variant`` selects a fold-specific test build (``test_m0`` / ``test_m1``).
+    """
     i = int(_PART_RE.search(path).group(1))
-    pf = pq.ParquetFile(OUT / split / f"{country}.parquet")
+    pf = pq.ParquetFile(OUT / (variant or split) / f"{country}.parquet")
     g = pf.read_row_group(i).to_pandas()
     assert len(g) == len(df) and np.array_equal(g["s1"].to_numpy(), df["s1"].to_numpy()) \
         and np.array_equal(g["idx"].to_numpy(), df["idx"].to_numpy()), f"stage2 rows misaligned for {path}"
@@ -147,8 +155,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Stage-2 group-consistency features")
     ap.add_argument("--p-tag", default="v2", help="run whose stage-1 predictions are used")
     a = ap.parse_args()
-    for split in ("train", "test"):
-        build(split, a.p_tag)
+    build("train", a.p_tag)
+    for m in (0, 1):  # fold-consistent test inputs, one per stage-1 model
+        build("test", a.p_tag, variant=f"test_m{m}", p_col=f"p_m{m}")
 
 
 if __name__ == "__main__":

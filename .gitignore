@@ -9,3 +9,4 @@ submissions/**/*.tsv
 cache/
 code/business_entity_resolution/artifacts/models/
 code/business_entity_resolution/artifacts/models_*/
+*_submission.zip
