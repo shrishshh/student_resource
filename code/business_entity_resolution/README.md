@@ -1,7 +1,7 @@
 # Business Entity Resolution — Amazon ML Challenge 2026
 
-> Work in progress: normalisation + blocking v1 are done; pairwise features / matching
-> model / output generation are not built yet.
+> Matcher v1: normalisation -> blocking -> pair features -> 2-fold LightGBM -> decision layer ->
+> `submissions/01_lgbm_v1/`. See `reports/` for the stage reports and `reports/experiments.md`.
 
 ## Environment
 
@@ -29,6 +29,10 @@ Data layout expected (never modified): `dataset/train/train_source{1,2,3}.tsv`,
 | 5 | `python -m src.blocking generate --split test` | `cache/test_pairs_all_{country}.parquet` | |
 | 6 | `python -m src.blocking prune --split train` / `--split test` | `cache/{split}_candidates.parquet` | |
 | 7 | `python -m src.norm_report`, `python -m src.blocking_report` | `reports/normalization_report.md`, `reports/blocking_report.md` | |
+| 8 | `python -m src.features --split train` / `--split test` (`--resume` skips finished countries) | `cache/features/{split}/{country}/part-*.parquet` | ~22 / 20 min |
+| 9 | `python -m src.train` | `cache/preds/{train_oof,test}.parquet`, `artifacts/models/` (git-ignored) | 80 min |
+| 10 | `python -m src.decide` | `artifacts/decision.json` | 15 min |
+| 11 | `python -m src.submit --name 01_lgbm_v1` | `submissions/01_lgbm_v1/`, `reports/matcher_report.md` | 4 min |
 
 Other: `python -m src.eda` (EDA report), `python -m src.make_empty_submission`.
 
@@ -44,11 +48,11 @@ Other: `python -m src.eda` (EDA report), `python -m src.make_empty_submission`.
 | `blocking.py` | DuckDB blocking keys, candidate pairs, quick scores, (k, K) tuning and pruning |
 | `norm_report.py`, `blocking_report.py` | Diagnostics reports |
 | `data.py` | Paths, loaders, integer ground-truth pairs |
+| `features.py`, `train.py`, `decide.py`, `submit.py` | Pair features, 2-fold LightGBM (OOF), decision layer, submission + matcher report |
 | `io_utils.py`, `metrics.py` | TSV reader / submission writer; macro F0.5 |
 | `eda.py`, `text_norm.py`, `make_empty_submission.py` | EDA and format sanity |
 
 Records are addressed as `(src, idx)` = source number and 0-based row in that source file.
 
-## Pipeline
 
-TODO: pairwise features, matching model, thresholding, output generation.
+Experiment log: `reports/experiments.md`.
