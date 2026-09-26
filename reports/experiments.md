@@ -7,3 +7,5 @@ builds on (the run's own changes land in the next commit, named in "change").
 |---|---|---|---|---|---|---|---|
 | 00_all_empty | 2026-09-26 00:40 | 6946727 | every S1 predicted empty (format check) | 0.0558 | 0.0559 | 0.0558 | pending |
 | 01_lgbm_v1 | 2026-09-26 12:55 | 29ea76f -> 6643f3c | blocking v1 (k=3, K=10) + 72 pair features + 2-fold LightGBM; odds one-home + expected-F0.5 (gamma 1.0) | 0.97071 | 0.96381 | 0.97532 | pending |
+| 01b_gamma15 | 2026-09-26 13:32 | a921e7c | LB probe: 01 with expected-F0.5 gamma 1.5 (more conservative); 5,671,235 test matches vs 5,727,038 in 01 | 0.97033 | 0.96352 | 0.97487 | pending |
+| 01c_france_empty | 2026-09-26 13:32 | a921e7c | LB probe: 01 with all 259,452 France S1 empty (01 had 13,079 of them empty); candidate_pairs unchanged | 0.97071 (= 01, France not in train) | 0.96381 | 0.97532 | pending |
