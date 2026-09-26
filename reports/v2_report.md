@@ -6,7 +6,7 @@ Out-of-fold macro F0.5 over all train S1 (scored with the `metrics.py` rule):
 |---|---|---|---|---|---|
 | v1 (01_lgbm_v1) | 0.97071 | 0.96381 | 0.97532 | 0.95219 | 0.97181 |
 | v2 (02_prune_v2) | 0.97303 | 0.96668 | 0.97727 | 0.95690 | 0.97399 |
-| stage 2 (03_stage2) | - | - | - | - | - |
+| stage 2 (03_stage2) | 0.97733 | 0.97267 | 0.98044 | 0.96919 | 0.97781 |
 
 Loss split (train pairs): true pairs never in the candidates / true pairs rejected by the decision / false-positive pairs:
 
@@ -14,8 +14,9 @@ Loss split (train pairs): true pairs never in the candidates / true pairs reject
 |---|---|---|---|
 | v1 | 290,922 | 208,272 | 50,186 |
 | v2 | 179,532 | 278,457 | 46,302 |
+| stage 2 | 179,532 | 219,144 | 27,795 |
 
-Runtime per part (minutes): B 40, C 98, D 81.
+Runtime per part (minutes): B 40, C 98, D 81, E 57.
 
 Notes:
 
@@ -439,8 +440,355 @@ Submission step 3.3 min.
 
 ## Part E. Stage-2 model with group-consistency features -> submissions/03_stage2/
 
-*train.md: not run / failed (see notes).*
+### Model (LightGBM, 2-fold out-of-fold, stage 2; run `s2`)
 
-*decide.md: not run / failed (see notes).*
+98 features. Params `{'objective': 'binary', 'metric': 'binary_logloss', 'num_leaves': 127, 'learning_rate': 0.05, 'min_data_in_leaf': 200, 'feature_fraction': 0.8, 'bagging_fraction': 0.8, 'bagging_freq': 1, 'lambda_l2': 1.0, 'seed': 42, 'deterministic': True, 'force_col_wise': True, 'num_threads': 16}`, up to 3000 rounds, early stopping 100 (logloss) on a 10% S1 hold-out. Each fold trains on a random 30% of its half's S1s and predicts every pair of the other half; test = mean of both models.
 
-*submit.md: not run / failed (see notes).*
+| model | trained on half | rounds | train S1 | train pairs | early-stop S1 |
+|---|---|---|---|---|---|
+| 0 | 0 | 672 | 298,355 | 3,785,758 | 32,762 |
+| 1 | 1 | 544 | 298,083 | 3,786,317 | 33,176 |
+
+OOF metrics (model h predicts the other half; raw p before any isotonic step):
+
+| model | country | pairs | AUC | logloss |
+|---|---|---|---|---|
+| 0 | ALL | 14,006,887 | 0.99940 | 0.02340 |
+| 0 | India | 5,650,560 | 0.99922 | 0.02568 |
+| 0 | US | 8,356,327 | 0.99950 | 0.02187 |
+| 1 | ALL | 14,016,143 | 0.99940 | 0.02339 |
+| 1 | India | 5,654,715 | 0.99920 | 0.02577 |
+| 1 | US | 8,361,428 | 0.99951 | 0.02178 |
+
+Calibration of OOF p (10 bins). Worst gap 0.0210 -> isotonic not needed.
+
+| bin | pairs | mean p | positive rate | gap |
+|---|---|---|---|---|
+| 0.0-0.1 | 20,205,791 | 0.0026 | 0.0028 | -0.0002 |
+| 0.1-0.2 | 212,824 | 0.1429 | 0.1454 | -0.0025 |
+| 0.2-0.3 | 113,803 | 0.2448 | 0.2437 | +0.0011 |
+| 0.3-0.4 | 76,021 | 0.3445 | 0.3367 | +0.0079 |
+| 0.4-0.5 | 59,582 | 0.4523 | 0.4519 | +0.0003 |
+| 0.5-0.6 | 45,821 | 0.5437 | 0.5280 | +0.0157 |
+| 0.6-0.7 | 29,724 | 0.6488 | 0.6278 | +0.0210 |
+| 0.7-0.8 | 32,696 | 0.7527 | 0.7406 | +0.0120 |
+| 0.8-0.9 | 55,542 | 0.8564 | 0.8517 | +0.0046 |
+| 0.9-1.0 | 7,191,226 | 0.9981 | 0.9981 | +0.0000 |
+
+Top-30 features by gain, model 0:
+
+| feature | gain |
+|---|---|
+| p1 | 25,778,862 |
+| pscore | 7,367,664 |
+| s_gap_maxp | 788,670 |
+| s_oth_house_maxp | 124,960 |
+| s_pshare_r_house | 112,536 |
+| s_sum_p | 96,926 |
+| s_oth_house_sump | 81,762 |
+| s_cnt_p50 | 62,024 |
+| r_oth_maxp | 59,175 |
+| r_cnt_p10 | 46,445 |
+| house_logdiff | 36,132 |
+| s_oth_name_maxp | 22,651 |
+| rank_s_all | 17,377 |
+| r_margin_score | 14,940 |
+| prank_s | 14,509 |
+| s_oth_name_sump | 13,968 |
+| s_n_near | 12,940 |
+| chain_s | 12,813 |
+| addr_ntok_s | 12,040 |
+| r_oth_score | 11,110 |
+| s_oth_house_n | 10,687 |
+| s_rank_addr | 10,574 |
+| s_rank_p | 10,555 |
+| rank_s | 10,222 |
+| s_oth_addr_maxp | 9,640 |
+| prank_r | 9,595 |
+| addr_tsort | 9,254 |
+| n_cand_rec | 9,213 |
+| n_cand_s1 | 9,171 |
+| name_cov_r | 8,828 |
+
+Top-30 features by gain, model 1:
+
+| feature | gain |
+|---|---|
+| p1 | 25,795,149 |
+| pscore | 7,401,130 |
+| s_gap_maxp | 761,898 |
+| s_oth_house_sump | 110,608 |
+| s_pshare_r_house | 110,029 |
+| s_oth_house_maxp | 96,945 |
+| s_sum_p | 93,603 |
+| r_oth_maxp | 58,151 |
+| s_cnt_p50 | 52,025 |
+| r_cnt_p10 | 48,364 |
+| house_logdiff | 31,739 |
+| s_oth_name_maxp | 17,818 |
+| prank_s | 14,517 |
+| rank_s_all | 13,570 |
+| r_margin_score | 13,401 |
+| s_n_near | 12,431 |
+| s_oth_name_sump | 12,115 |
+| s_oth_house_n | 11,075 |
+| s_rank_p | 10,976 |
+| chain_s | 10,149 |
+| addr_ntok_s | 10,090 |
+| r_oth_score | 9,805 |
+| addr_cov_r | 9,441 |
+| s_oth_addr_maxp | 8,758 |
+| s_rank_addr | 8,742 |
+| addr_tsort | 8,248 |
+| r_margin_addr | 8,177 |
+| name_cov_r | 8,092 |
+| n_cand_rec | 7,923 |
+| rank_s | 7,707 |
+
+Training + prediction: 31.4 min, peak RSS 7.0 GiB.
+
+
+### Decision layer (run `s2`, tuned on OOF over all train S1)
+
+29 configurations evaluated (limited: odds + ef (gamma 0.85/1.0/1.2/1.5) and odds + two (t1 0.50-0.70, t2 0.60-0.80)). S1s without candidates and true pairs missing from the candidates (179,532) count against recall.
+
+**Winner: D1 = `odds`, D2 = `ef`, params `{"gamma": 1.0}` -> OOF macro F0.5 0.97733** (re-scored with `metrics.macro_f05`: 0.97733).
+
+Best configuration of each (D1, D2) family:
+
+| D1 | D2 | params | OOF F0.5 | India | US | singleton | non-singleton |
+|---|---|---|---|---|---|---|---|
+| odds | ef | {"gamma": 1.0} | 0.97733 | 0.97267 | 0.98044 | 0.9692 | 0.9778 |
+| odds | two | {"t1": 0.5, "t2": 0.75} | 0.97728 | 0.97261 | 0.98039 | 0.9707 | 0.9777 |
+
+All global-threshold and expected-F configurations:
+
+| D1 | D2 | params | OOF F0.5 | India | US | singleton | non-singleton |
+|---|---|---|---|---|---|---|---|
+| odds | ef | {"gamma": 1.5} | 0.97702 | 0.97231 | 0.98016 | 0.9771 | 0.9770 |
+| odds | ef | {"gamma": 1.2} | 0.97726 | 0.97261 | 0.98037 | 0.9732 | 0.9775 |
+| odds | ef | {"gamma": 0.85} | 0.97731 | 0.97262 | 0.98044 | 0.9651 | 0.9780 |
+| odds | ef | {"gamma": 1.0} | 0.97733 | 0.97267 | 0.98044 | 0.9692 | 0.9778 |
+
+Winner breakdown:
+
+| slice | OOF macro F0.5 |
+|---|---|
+| overall | 0.97733 |
+| India | 0.97267 |
+| US | 0.98044 |
+| singleton | 0.96919 |
+| non_singleton | 0.97781 |
+
+Predicted vs true set size (number of train S1):
+
+| size | true | predicted |
+|---|---|---|
+| 0 | 123,247 | 131,423 |
+| 1 | 119,157 | 156,046 |
+| 2 | 375,212 | 415,694 |
+| 3 | 530,841 | 539,760 |
+| 4 | 484,115 | 461,675 |
+| 5 | 321,957 | 291,262 |
+| 6-10 | 252,255 | 210,938 |
+| >10 | 37 | 23 |
+
+Best configuration per country (vs the global winner on that country):
+
+| country | D1 | D2 | params | best F0.5 | winner F0.5 |
+|---|---|---|---|---|---|
+| India | odds | ef | {"gamma": 1.0} | 0.97267 | 0.97267 |
+| US | odds | ef | {"gamma": 0.85} | 0.98044 | 0.98044 |
+
+Error analysis: 27,795 false-positive pairs, 219,144 false-negative pairs among candidates (+ 179,532 true pairs never in the candidates).
+
+15 random false positives:
+
+| country | S1 id | S1 name | S1 address | S1 name_core | rec id | rec name | rec address | rec name_core | rec name_alt | p | q |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| India | S1-751034999 | Jai Technologies Pvt Ltd | Flat -B/1301, Plot-35, 36, 37 & 36A, Sector 36, Bhoomi Tower, Navi Mumbai, Mumbai City, Maharashtra | jai technologies | S2-385030426 | Jai Technologies Limited | #40 FLAT -B/1302, PLOT-35, 36, 37 & 36A, SECTOR 36, BHOOMI TOWER, NAVI MUMBAI, Maharashtra | jai technologies | *(empty)* | 0.391 | 0.391 |
+| India | S1-263670619 | Bulandshahr Equipment Corporation | C/O Surendra Mohan Ralla Bulandshahr, Bulandshahr, Uttar Pradesh | bulandshahr equipment | S3-744772408 | Bulandshahr Ecbpmcnt Group Corporation | C/o Surendra Mohan Ralla Bulandshahr, Bulandshahr, UP | bulandshahr ecbpmcnt group | *(empty)* | 0.866 | 0.866 |
+| India | S1-596603509 | Solutions Majority Housing Private Limited | 17/14, Dda Flats Dakshin Puri, New Delhi, South Delhi, Delhi | solutions majority housing | S3-647419892 | Solutions Majority India Private Ltd | Door No 14 17/18, Dda Flats Dakshin Puri, South Delhi, New Delhi, दिल्ली | solutions majority india | *(empty)* | 0.968 | 0.968 |
+| India | S1-116057056 | Hotel Tech | 5 Rachana Aptlaxminarayan Temple Road Borivali West, Mumbai, Mumbai City, Maharashtra | hotel tech | S3-649601017 | होटल टेक LLP | 6-5, Mumbai Ii, Mumbai City, MH | hotel tech | *(empty)* | 0.907 | 0.874 |
+| India | S1-804330116 | Red Foods Private Limited | 4, Inside Ajmeri Gate, Beawar, Ajmer, Rajasthan | red foods | S2-577859024 | Halobelo | BEAWAR, AJMER, राजस्थान, <NULL>, #4 INSMDE AJMERI GATE | halobelo | *(empty)* | 0.994 | 0.994 |
+| India | S1-971011427 | Vga & Associates Limited | 4/681, Vijayant Khand, Lucknow, Uttar Pradesh | vga associates | S3-521181516 | Vga & Associates Private Limited | UP, 4/688, Lucknow | vga associates | *(empty)* | 0.887 | 0.887 |
+| US | S1-901043523 | Pinnacle | 7312 Germanshire Lane, Memphis, TN | pinnacle | S2-517074114 | Pinnacle Corp | 731 GERMANSHIRE LN, MEMPHIS, TN | pinnacle | *(empty)* | 0.952 | 0.952 |
+| US | S1-367242037 | Liberty Trading Group | 117 Whitlow Drive, TX, Mckinney | liberty trading group | S2-478854936 | Inc Liberty Trading | 122 WHITLOW DRVE, TX, MCKINNEY | liberty trading | *(empty)* | 0.778 | 0.778 |
+| India | S1-404068900 | Lotus Trading Private Limited | 2/4, 2Nd Floor, Tanwar Colony, Kolkata, Kolkata, Howrah, West Bengal | lotus trading | S2-208527660 | লোটাস ট্রেডিং প্রাইভেট লিমিটেড | #2ND FLOOR, KOLKATA, West Bengal | lotus trading | *(empty)* | 0.923 | 0.788 |
+| India | S1-18909378 | Jayashree (india) Care | 43, Kanniamman Pettai Village, Survey No: 145/6-C, Kadapakkam, Andarkupp, Am, Chennai, Tamil Nadu | jayashree india care | S3-645527518 | Jayashree (india) Care Pvt Ltd | Kanniamman Pettai Village, Survey No: 145/6-C, Kadapakkam, Andarkupp, Am, தமிழ்நாடு, Chennai, 56, Chennai | jayashree india care | *(empty)* | 0.957 | 0.957 |
+| India | S1-549740450 | Anand Marketing Private Limited | Tower-1, 1St Floor, Xi - 11 & 12, Block - Ep, West Bengal, Saltlake, Globsyn Crystals, North 24 Parganas | anand marketing | S2-833627494 | আনন্দ মার্কেটিং এলএলপি | NO ##67 GLOBSYN CRYSTALS, TOWER-1, 1ST FLOOR, XI - 11 & 12, BLOCK - EP, NORTH 24 PARGANAS, SALTLAKE, West Bengal | anand marketing | *(empty)* | 0.881 | 0.881 |
+| US | S1-103531921 | Great United Biotech Inc. | 1325 5th Street, Unit 909, Washington, DC | great united biotech | S3-226622299 | Great United Biotech Co | 132 5th St, Unit 909, Washington, District of Columbia | great united biotech | *(empty)* | 0.886 | 0.886 |
+| US | S1-694963810 | Garcia Beacon Yorkville, Inc | 811 Williams Street, Apex, NC | garcia beacon yorkville | S3-525240456 | Garcia Beacon Yorkville, Ltd | 812 Williams St, Apex, North Carolina | garcia beacon yorkville | *(empty)* | 0.945 | 0.945 |
+| US | S1-634604672 | Cultural Advanced Council LLC | 1471 Long Pond Road, Unit Apartment 102, Greece, NY | cultural advanced council | S3-522500455 | Lumavi Advanced Council | 1471 Long Pond Rd, Greece, New York | lumavi advanced council | *(empty)* | 0.836 | 0.836 |
+| US | S1-234668701 | Lynx LLC | 1804 Aberdeen Drive, Glenview, IL | lynx | S2-78920509 | Nexzeph | IL, 180 ABERDEEN DR, GLENVIEW | nexzeph | *(empty)* | 0.865 | 0.834 |
+
+15 random false negatives (true pairs in the candidates that were rejected):
+
+| country | S1 id | S1 name | S1 address | S1 name_core | rec id | rec name | rec address | rec name_core | rec name_alt | p | q |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| India | S1-435296759 | Citrus & Sons Private Limited | No.40 2Nd Floor Sadashiv Colony Kusugal Road, Dharwad, Karnataka, Hubli, Dharwar | citrus sons | S3-900948891 | Citrus & Private Limited Service | *(empty)* | citrus service | *(empty)* | 0.049 | 0.034 |
+| India | S1-460873744 | Indo Consulting Pvt Ltd | 5 Embassy Buildingopp Jubilee Garden Jawahar Road, Rajkot, Gujarat | indo consulting | S2-302275897 | Indo Ltd Pvt Consulting | *(empty)* | indo consulting | *(empty)* | 0.021 | 0.011 |
+| India | S1-813013458 | Universal Finance Private Limited | 8-3-720/6, 5Th Floor, Salivahana Nagar, Srinagar Colony, Ameerpet, Hyderabad, Telangana | universal finance | S3-429900699 | Dr Universal Finance Private Limited | *(empty)* | universal finance | *(empty)* | 0.017 | 0.009 |
+| India | S1-230655457 | Gurgaon Exim Private Limited | 324, Ganpati Arcade Near Aapka Bazar, Gurdwara Road, Gurgaon, Haryana | gurgaon exim | S3-465960480 | Gurgaon Emi Private Limited | *(empty)* | gurgaon emi | *(empty)* | 0.531 | 0.447 |
+| US | S1-37486965 | Continental Rapid For | 24861 666 Trail, Wyandotte, OK | continental rapid for | S2-681903205 | Continental Rpaid For | *(empty)* | continental rpaid for | *(empty)* | 0.211 | 0.109 |
+| US | S1-513928120 | Mayfield Pinnacle Ethereum LLC | 312 Hartsford Way, Brownsburg, IN | mayfield pinnacle ethereum | S2-98436286 | MAYFIELD PINNACLE ETHEREUM LLC | 306 HARTSFORD WAY, BROWNSBURG, IN | mayfield pinnacle ethereum | *(empty)* | 0.096 | 0.096 |
+| US | S1-701100074 | Shaw Complete Argentina LLC | 17654 Guthrie Street, AZ, Surprise | shaw complete argentina | S2-164065228 | Shaw Colphclese Argentina LLC | AZ, SURPRISE, 17653 GUTHRIE STREET | shaw colphclese argentina | *(empty)* | 0.302 | 0.302 |
+| India | S1-882183867 | Bangalore Industries Public Limited | #22/19, 1St Main Road, Ramagondanhalli, Bangalore, Karnataka | bangalore industries public | S2-857981596 | Bangalore Public Limited Center | *(empty)* | bangalore public center | *(empty)* | 0.047 | 0.031 |
+| India | S1-782428720 | Bajrang Traders Pvt Ltd | 235-C Raja Ram Mohan Roy Road 1St Floor, Kolkata, Howrah, West Bengal | bajrang traders | S3-115661976 | Bajrang Traders Pvt Ltd | *(empty)* | bajrang traders | *(empty)* | 0.333 | 0.185 |
+| India | S1-927796505 | Anand Products Private Limited | Panchvati Soc. Main Road, Athithi Chowk, Rajkot, Gujarat | anand products | S2-524576483 | approducts.com | PANCHVATI SOC. MAIN ROAD, RAJKOT, Gujarat | ap products | *(empty)* | 0.093 | 0.074 |
+| India | S1-218500189 | Ghaziabad Logistics | Ghaziabad, 4Th Floor, Devika Tower, Chandar Nagar, Uttar Pradesh, 404 | ghaziabad logistics | S3-455451449 | Ghaziabad Lógistics (ID: 20457) | *(empty)* | ghaziabad logistics | *(empty)* | 0.163 | 0.090 |
+| US | S1-7317410 | Anderson Compania LP | 530 Walters Road, Moxee, WA | anderson compania | S2-936344478 | ANDERSON COMPANIA LP | *(empty)* | anderson compania | *(empty)* | 0.527 | 0.365 |
+| US | S1-520073086 | Select Diagnostic Services LLC | 743 Battle Avenue, City Of Aberdeen, MD | select diagnostic services | S3-363198346 | Select Diagnostic Services | *(empty)* | select diagnostic services | *(empty)* | 0.376 | 0.230 |
+| US | S1-381750541 | Brightex Burtech LLC | Thousand Oaks, 300 Rolling Oaks Drive, CA, Unit 327 | brightex burtech | S2-618400097 | Soljaxdrex \| www.soljaxdrex.com | CA, THOUSAND OAKS, 300 ROLLING OAKS DRIVE | soljaxdrex | *(empty)* | 0.022 | 0.020 |
+| US | S1-435835391 | Schein Quality Residential Inc | 6 Russell Drive, Talladega, AL | schein quality residential | S3-493712054 | Schein Qulaiity Residential Inc | *(empty)* | schein qulaiity residential | *(empty)* | 0.136 | 0.065 |
+
+Decision search time 5.2 min, peak RSS 6.8 GiB.
+
+
+### Test submission (run `s2`)
+
+`submissions/03_stage2/` with decision `odds` + `ef` `{"gamma": 1.0}`: 6,148,679 matched pairs over 1,732,544 test S1; candidate_pairs.tsv lists all 24,300,351 scored pairs.
+
+Validator (`--check-ids`):
+
+```
+ML Challenge 2026 — submission validator
+  test dir: dataset/test
+  required S1 entities: 1732544
+  valid S2/S3 match IDs: 9969589
+  matching_results.tsv: 1732544 rows (95003 empty, 1637541 non-empty).
+  candidate_pairs.tsv: 1732544 rows (116 empty, 1732428 non-empty).
+
+PASS — no blocking issues found. Safe to submit.
+```
+
+Sanity, test vs train OOF (same decision config):
+
+| split | country | S1 | % S1 predicted empty | mean predicted set size | mean q of accepted pairs |
+|---|---|---|---|---|---|
+| train OOF | India | 883,188 | 6.00% | 3.272 | 0.9950 |
+| train OOF | US | 1,323,633 | 5.92% | 3.307 | 0.9970 |
+| test | France | 259,452 | 4.78% | 3.601 | 0.9921 |
+| test | India | 809,986 | 5.73% | 3.440 | 0.9913 |
+| test | US | 663,106 | 5.46% | 3.661 | 0.9910 |
+
+### France: 15 random test S1 (accepted matches, then top-3 rejected candidates)
+
+| S1 id | name | address | role | record id | q |
+|---|---|---|---|---|---|
+| S1-13985225 | Lille Loisirs SASU | 144 Rue Roger Salengro, Lille, Hauts-de-France | S1 | *(empty)* | *(empty)* |
+| *(empty)* | Lille Loisirs | 144 R Roger Salengro, Lille | MATCH | S3-227686224 | 1.000 |
+| *(empty)* | Lille-Loisirs | 144 RUE ROGER SALENGRO, LILLE, Hauts-de-France | MATCH | S2-137268766 | 1.000 |
+| *(empty)* | LL | 144 Rue Roger Salengro, Lille | MATCH | S3-849615471 | 0.950 |
+| *(empty)* | Groupe Lille SASU | 144 RUE ROGER SALENGRO, Hauts-de-France, Lille | MATCH | S2-163717074 | 0.907 |
+| *(empty)* | arts & frères france eurl | 144 R. Roger Salengro, Lille | rejected | S3-918404853 | 0.007 |
+| *(empty)* | Amicale des Pompiers SA | 144 R Roger Salengro, Lille | rejected | S3-397639182 | 0.002 |
+| *(empty)* | Amicale Pompiers des (Distribution) | 144 R ROGER SALENGRO, LILLE, Hauts-de-France | rejected | S2-101372673 | 0.001 |
+| S1-746566353 | Deleves Jeunes | 2 Rue Pierre et Marie Curie, Nantes, Pays de la Loire | S1 | *(empty)* | *(empty)* |
+| *(empty)* | De1eves Jeunes | No 2 Rue Pirre Et Marie Curie, Nantes, Loire-Atlantique | MATCH | S3-91367773 | 1.000 |
+| *(empty)* | Deleves Jeunes | Loire-Atlantique, No 2 Rue Pierre Et Marie Cure, Nantes | MATCH | S3-587161508 | 1.000 |
+| *(empty)* | DELEVES JEUNES | #2 RUE PIERRE ET MAROE CURIE, NANTES, Loire-Atlantique | MATCH | S2-678345630 | 1.000 |
+| *(empty)* | Deleves Jeunes SA | 3 Rue Pierre Et Marie Curie, Nantes, Pays de la Loire | MATCH | S3-412821487 | 0.982 |
+| *(empty)* | Deleves France  Jeunes | N°3 RUE PIERRE ET MARIE CURIE, NANTES, Loire-Atlantique | MATCH | S2-239155518 | 0.895 |
+| *(empty)* | Deleves Groupe Jéunes | Pays de la Loire, 3 Rue Pierre Et Marie Curie, Nantes | rejected | S3-578161022 | 0.419 |
+| *(empty)* | Deleves Jeunes [SARL] | *(empty)* | rejected | S3-254901695 | 0.030 |
+| *(empty)* | Deleves Jëunes SARL | *(empty)* | rejected | S2-635896238 | 0.029 |
+| S1-115610473 | Boules Club SAS | 11 Bis Chemin de la Violerie, Nantes, Pays de la Loire | S1 | *(empty)* | *(empty)* |
+| *(empty)* | SAS Boules Club | Loire-Atlantique, Nantes, 11 Bis Chemin De La Violerie | MATCH | S3-769783373 | 1.000 |
+| *(empty)* | Boules Club | Loire-Atlantique, Nantes, 11 Bis Ch De La Violerie | MATCH | S3-124509233 | 1.000 |
+| *(empty)* | SAS Boules Club | Loire-Atlantique, Nantes, 11 Bis Chemin De La Violerie | MATCH | S3-719394688 | 1.000 |
+| *(empty)* | BOULES CLUB SAS | 11 BIS CH. DE LA VILOERIE, NANTES, Loire-Atlantique | MATCH | S2-118722559 | 1.000 |
+| *(empty)* | S.A.S Boules Sportive | 24 Bis Ch. De La Violerie, Nantes, Pays de la Loire | rejected | S3-48281074 | 0.014 |
+| *(empty)* | Boules Sante SAS | NANTES, 24 BIS CHEMIN DE LA VIOLERIE | rejected | S2-91384621 | 0.006 |
+| *(empty)* | Frequence Club EURL | 18 Bis Ch. De La Violerie, Nantes, Pays de la Loire | rejected | S3-670712087 | 0.000 |
+| S1-50859199 | Universitaire Amis SAS | 117 Rue de la Pelouse de Douet, Bordeaux, Nouvelle-Aquitaine | S1 | *(empty)* | *(empty)* |
+| *(empty)* | Universitaire Comite SAS | 117 RUE DE LA PELOUSE DE DOUET, BORDEAUX, Gironde | MATCH | S2-146819225 | 0.999 |
+| *(empty)* | Robotique Foyer SASU | 117 R De La Pelouse De Douet, Bordeaux, Gironde | rejected | S3-865273917 | 0.002 |
+| *(empty)* | Universitaire Union | 138 R DE LA PELOUSE DE DOUET, BORDEAUX | rejected | S2-862288807 | 0.001 |
+| *(empty)* | Veozeta | 31 RUE DE LA PELOUSE DE DOUET, Bordeaux | rejected | S2-693993787 | 0.000 |
+| S1-989309417 | Bordeaux Club SARL | 18 Rue Dubessan, Bordeaux, Nouvelle-Aquitaine | S1 | *(empty)* | *(empty)* |
+| *(empty)* | BORDEAUX ÇLUB SARL | 18 R DUBESSAN, BORDEAUX | MATCH | S2-173366715 | 1.000 |
+| *(empty)* | Bordeaux Crllnb SARL | 18 R. Dubessan, Nouvelle-Aquitaine, Bordeaux | MATCH | S3-398746343 | 1.000 |
+| *(empty)* | Bordeaux  Club Distribution SARL | 25 Rue Dubessan, Bordeaux, Nouvelle-Aquitaine | rejected | S3-266743956 | 0.000 |
+| *(empty)* | SARL Taxi Club Participations | 11 Rue Dubessan, Bordeaux | rejected | S3-533203030 | 0.000 |
+| *(empty)* | MSSP | 4 R. DUBESSAN, Bordeaux, Gironde | rejected | S2-910581354 | 0.000 |
+| S1-702936992 | Union du Faubourgs | 142 Rue Raspail, Lille, Hauts-de-France | S1 | *(empty)* | *(empty)* |
+| *(empty)* | Faubourgs du Union (Groupe) | 151 R. RASPAIL, Lille, Hauts-de-France | rejected | S2-443499532 | 0.000 |
+| *(empty)* | Union Du Fâubourgs International | 151 Rue Raspail, Lille, Hauts-de-France | rejected | S3-487191250 | 0.000 |
+| *(empty)* | Fàubourgs du Comité Groupe | 17 R. À FIENS, Lille | rejected | S2-102742866 | 0.000 |
+| S1-774223557 | Daffaires Sportive SARL | 11 Rue Clément Ader, Tourcoing, Hauts-de-France | S1 | *(empty)* | *(empty)* |
+| *(empty)* | SARL Daffaires Spôrtive | Nord, 11 RUE CLÉMENT ADER, Tourcoing | MATCH | S2-934678039 | 1.000 |
+| *(empty)* | (Sarl) Daffaires Sportive | 11 Rue Clement Ader, Tourcoing, Hauts-de-France | MATCH | S3-165106053 | 1.000 |
+| *(empty)* | Daffaires Sportive SASU | Hauts-de-France, 13 Rue Clément Ader, Tourcoing | MATCH | S3-17866614 | 0.947 |
+| *(empty)* | Daffaires & | *(empty)* | rejected | S3-894744964 | 0.084 |
+| *(empty)* | Daffaires SAS Développement | *(empty)* | rejected | S2-143789536 | 0.051 |
+| *(empty)* | Daffaires Sportive Participations SARL | 13 R. Clément Adtr, Tourcoing, Hauts-de-France | rejected | S3-504568075 | 0.016 |
+| S1-983257243 | Litalie Groupement (France) EURL | 16 bis Rue de la Joselière, Pornic, Pays de la Loire | S1 | *(empty)* | *(empty)* |
+| *(empty)* | EURL Litalie Groupement (France) | 16 Bis Rue De La Joseliere, Pornic | MATCH | S3-733576441 | 1.000 |
+| *(empty)* | EURL Litalie Groupement (Frànce) | 16 B RUE DE LA JOSELIÈRE, Pornic, Pays de la Loire | MATCH | S2-972442071 | 1.000 |
+| *(empty)* | Litalie Groupement (France) | Pornic, 16 Bis R De La Joselière | MATCH | S3-623725439 | 1.000 |
+| *(empty)* | Litalie Club (France) EURL | 16 Bis Rue De La Joselière, Pornic | MATCH | S3-490745586 | 0.998 |
+| *(empty)* | Keloecto | 16 bis Rue de la Joselière, Pornic, Pays de la Loire | rejected | S3-303039848 | 0.758 |
+| *(empty)* | LITALIE GROUPEMENT (FRANCE) S.N.C. | 27B R DE LA JOSELIÈRE, PORNIC | rejected | S2-102932901 | 0.002 |
+| *(empty)* | Pornic Groupe France SARL | 67 Bis Rue De La Joseliere, Pornic, Loire-Atlantique | rejected | S3-945611014 | 0.000 |
+| S1-772337801 | Club du Beyond | 13 Impasse Emile Lanusse Cazaux, Nouvelle-Aquitaine, La Teste-de-Buch | S1 | *(empty)* | *(empty)* |
+| *(empty)* | Club Beyond  du | 13 IMP. EMILE LANUSSE CAZAUX, LA TESTE-DE-BUCH, Gironde | MATCH | S2-42389812 | 1.000 |
+| *(empty)* | Club du Beyond SCI | 13 IMP. EMILE LANUSSE CAZAUX, LA TESTE DE BUCH, Gironde | MATCH | S2-17963325 | 1.000 |
+| *(empty)* | Club du [Beyond] | LA TESTE-DE-BUCH, 13 IMP EMILE LANUSSE CAZAUX, Gironde | MATCH | S2-715440609 | 1.000 |
+| *(empty)* | CLUB DU BEYOND + ASSOCIÉS | LA TESTE-DE-BUCH, Gironde, 13 IMPASSE EMILE LANUSSE CAZAUX | MATCH | S2-886918475 | 0.997 |
+| *(empty)* | Club du Beyond S.A. | 20 Impasse Emile Lanusse Cazaux, La Teste-de-buch | rejected | S3-624683454 | 0.010 |
+| *(empty)* | CYN Ecole S.A.R.L. | Gironde, LA TESTE-DE-BUCH, 9 IMPASSE ENILE LANUSSE CAZAUX | rejected | S2-919554451 | 0.000 |
+| *(empty)* | CN SARL  Développement | 18 Impasse Emile Lanusse Cazaux, La Teste-de-buch | rejected | S3-648956107 | 0.000 |
+| S1-200342034 | Karate Lycée SAS | 15 Rue des Chambelles, Nantes, Pays de la Loire | S1 | *(empty)* | *(empty)* |
+| *(empty)* | Karate-Lycée SAS | 15 R. DES CHAMBELLES, NANTES | MATCH | S2-313652548 | 1.000 |
+| *(empty)* | Karate Lycée SAS | 15 R. DES CHAMBELLES, NANTES | MATCH | S2-57598555 | 1.000 |
+| *(empty)* | KARATE LYCÉE SA | (18) Rue Des Chambelles, Nantes | rejected | S3-7005314 | 0.339 |
+| *(empty)* | Karate Lyfee EURL | *(empty)* | rejected | S2-972980486 | 0.226 |
+| *(empty)* | SAS Karate Lycée Développement | (18) Rue Des Chambelles, Nantes | rejected | S3-276350007 | 0.034 |
+| S1-507990218 | Scorpio Club | 32 Rue du Corsaire, Dunkerque, Hauts-de-France | S1 | *(empty)* | *(empty)* |
+| *(empty)* | Scorpio CLUB | 32 R. Du Corsaire, Dunkerque, Nord | MATCH | S3-284097524 | 1.000 |
+| *(empty)* | Scorpio Club SA | 32 RUE DU CORSAIRE, DUNKERQUE, Hauts-de-France | MATCH | S2-594979572 | 1.000 |
+| *(empty)* | Scorpio Club | 32 Rue Du Corsaire, Nord, Dunkerque | MATCH | S3-783467101 | 1.000 |
+| *(empty)* | Scorpio Club SARL | 32 R. Du Corsaire, Dunkerque, Nord | MATCH | S3-604351882 | 1.000 |
+| *(empty)* | Scorpio Sportive | 32 Rue Du Corsaire, Dunkerque, Nord | MATCH | S3-142231258 | 1.000 |
+| *(empty)* | Scorpio Cb | 32 Rue Du Corsaire, Dunkerque, Nord | MATCH | S3-795342602 | 1.000 |
+| *(empty)* | Scorpio Et  Fils | 32 Rue Du Corsaire, Dunkerque, Nord | MATCH | S3-507677700 | 1.000 |
+| *(empty)* | Scorpio Conseil | 43 R DU CORSAIRE, DUNKERQUE | rejected | S2-698869479 | 0.000 |
+| *(empty)* | SC0RPIO CLUB PARTICIPATIONS | 43 R DU CIRSAIRE, Dunkerque | rejected | S2-592001586 | 0.000 |
+| *(empty)* | @lochcri | 24 Rue Du Corsaire, Dunkerque, Nord | rejected | S3-650727856 | 0.000 |
+| S1-288686294 | Reseau & Frères SARL | 85 Rue Croix de Seguey, Bordeaux, Nouvelle-Aquitaine | S1 | *(empty)* | *(empty)* |
+| *(empty)* | reseau & frères sarl | 85 Rue Croix De Seguey, Bordeaux, Gironde | MATCH | S3-748990621 | 1.000 |
+| *(empty)* | Reseau & Frères SARL | Nº 85 R. CROIX DE SEGUEY, BORDEAUX | MATCH | S2-904891446 | 1.000 |
+| *(empty)* | Reseau & | 85 Rue Croix De Seguey, Bordeaux, Gironde | MATCH | S3-273137125 | 1.000 |
+| *(empty)* | Reseau & Frèrës SARL | 85 R. Crsix De Seguey, Bordeaux, Gironde | MATCH | S3-830040073 | 1.000 |
+| *(empty)* | France Reseau & SARL | 85 Rue Croix De Seguey, Bordeaux, Gironde | MATCH | S3-732341307 | 1.000 |
+| *(empty)* | Yn Coiffure | 85 Rue Croix De Seguey, Bordeaux, Gironde | rejected | S3-93427129 | 0.370 |
+| *(empty)* | Chambre Service EURL | 85 Rue Croix De Seguey, Bordeaux, Gironde | rejected | S3-173149925 | 0.033 |
+| *(empty)* | CHAMBRE SANTE DÉVELOPPEMENT | BORDEAUX, Nº 85 R CROIX DE SEGUEY | rejected | S2-85740888 | 0.003 |
+| S1-549612175 | IJE Culturelle SARL | 70 Rue Champailler, Calais, Hauts-de-France | S1 | *(empty)* | *(empty)* |
+| *(empty)* | IJE Culturelle SARL | 70 R CHAMPAILLER, CALAIS | MATCH | S2-776891879 | 1.000 |
+| *(empty)* | IJE Culturelle SARL | 70 Rue Champailler, Calais, Hauts-de-France | MATCH | S3-861937670 | 1.000 |
+| *(empty)* | IJE Çulturelle SARL | 70 Rue Champailler, Calais, Hauts-de-France | MATCH | S3-618325488 | 1.000 |
+| *(empty)* | IJE CULTURELLE SARL | CALAIS, 70 RUE CHAMPAILLER | MATCH | S2-154038975 | 1.000 |
+| *(empty)* | IJE CLUB SARL | 70 R. CHAMPAELLER, CALAIS | MATCH | S2-333551947 | 0.999 |
+| *(empty)* | SARL IJE Ecole | 70 R. CHAMPIALLER, Calais | MATCH | S2-676500959 | 0.999 |
+| *(empty)* | IJE Culturelle SA | *(empty)* | rejected | S3-216040750 | 0.248 |
+| *(empty)* | Reine Culture Groupe SARL | 19 R. Champailler, Calais, Hauts-de-France | rejected | S3-184356212 | 0.000 |
+| *(empty)* | Reine Culture SARL | 14 RUE CHAMPAILLER, CALAIS | rejected | S2-289812745 | 0.000 |
+| S1-387739123 | Bourse Service SAS | 153, rue David Johnston, Bordeaux, Nouvelle-Aquitaine | S1 | *(empty)* | *(empty)* |
+| *(empty)* | bourse service sas | 153, Rue David Johnston, Bordeaux | MATCH | S3-174546589 | 1.000 |
+| *(empty)* | Bourse Service SCI | Gironde, Bordeaux, 71, 153, Rue David Johnston | MATCH | S3-6058603 | 0.999 |
+| *(empty)* | BOURSE SERVICE PARTICIPATIONS SAS | 71, 153, RUE DAVID JOHNSTON, BORDEAUX | rejected | S2-69727110 | 0.121 |
+| *(empty)* | SOLUMBRACALO | 153 R DAVID JOHNSTON, Bordeaux, Nouvelle-Aquitaine | rejected | S2-696587485 | 0.082 |
+| *(empty)* | Novitavoarc | 153, RUE DAVID JOHNSTON, Nouvelle-Aquitaine, Bordeaux | rejected | S2-806820964 | 0.070 |
+| S1-45027199 | Centre Hospitalier Sainte Dame | 24 Rue Castel, Lille, Hauts-de-France | S1 | *(empty)* | *(empty)* |
+| *(empty)* | CENTRE HOSPITALIER SÀINTE DAME | 24 RUE CASTEL, LILLE, Nord | MATCH | S2-291576111 | 1.000 |
+| *(empty)* | Centre Hospitalier  Sainte Dame | 24 Rue Castel, Lille, Hauts-de-France | MATCH | S3-719764905 | 1.000 |
+| *(empty)* | Centre Hospitalier Sainte Dame | 24 RUE CASTEL, LILLE, Nord | MATCH | S2-480952141 | 1.000 |
+| *(empty)* | CENTRE HOSPITALIER SAINTE DLER | 24 R. CASTEL, LILLE, Nord | MATCH | S2-858025055 | 0.964 |
+| *(empty)* | Établissements Falcon [Développement] | LILLE, 33 RUE CASTEL | rejected | S2-141930164 | 0.000 |
+| *(empty)* | Genetique (France) Maison SARL | 37 R Castel, Lille | rejected | S3-851239493 | 0.000 |
+| *(empty)* | Nylaevosynio | 7 Rue de la Ferme Castel, Lille, Hauts-de-France | rejected | S3-92625251 | 0.000 |
+
+Submission step 7.9 min.
+
