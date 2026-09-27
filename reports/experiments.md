@@ -17,3 +17,5 @@ builds on (the run's own changes land in the next commit, named in "change").
 | 04_s1_g15 | 2026-09-27 02:59 | e8b7d59 | slim candidates; stage 1; odds + ef gamma 1.5; 5,759,106 test matches | 0.97266 | 0.96606 | 0.97706 | pending |
 | 04_s1_g20 | 2026-09-27 02:59 | e8b7d59 | slim candidates; stage 1; odds + ef gamma 2.0; 5,720,848 test matches | 0.97181 | 0.96493 | 0.97640 | pending |
 | 04_s2_g15_fr25 | 2026-09-27 02:59 | e8b7d59 | slim candidates; stage 2 (fold-consistent); odds + ef gamma 1.5, France gamma 2.5; 6,036,227 test matches | 0.97639 | 0.97142 | 0.97970 | pending |
+| 06_D_g10 | 2026-09-27 16:57 | bb68a48 | stage 1 trained on the test-like world (19% S1 dropped); odds + ef gamma 1.0; test-like world 0.97145; 5,778,970 test matches | 0.97267 | 0.96606 | 0.97709 | pending |
+| 06_D_g15 | 2026-09-27 16:57 | bb68a48 | stage 1 trained on the test-like world (19% S1 dropped); odds + ef gamma 1.5; test-like world 0.97094; 5,717,272 test matches | 0.97178 | 0.96503 | 0.97629 | pending |
