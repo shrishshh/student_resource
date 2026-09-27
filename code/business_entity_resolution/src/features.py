@@ -309,7 +309,7 @@ def build(split: str, resume: bool = False) -> None:
     """
     t0 = time.time()
     gt_codes = None
-    if split == "train":
+    if split.startswith("train"):  # train and derived train splits (e.g. trainD)
         gt = gt_pairs()
         gt_codes = np.sort(pair_codes(gt["s1"].to_numpy(), gt["src"].to_numpy(), gt["idx"].to_numpy()))
     stats = {"split": split, "countries": {}}

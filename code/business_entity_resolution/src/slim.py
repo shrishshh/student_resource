@@ -119,12 +119,12 @@ def curve() -> dict:
     return out
 
 
-def apply(tau: float) -> None:
-    """Write the slim candidates for train and test (previous candidates -> cache/v2/)."""
+def apply(tau: float, splits=("train", "test")) -> None:
+    """Write the slim candidates for the splits (previous train/test candidates -> cache/v2/)."""
     V2_DIR.mkdir(parents=True, exist_ok=True)
-    for split in ("train", "test"):
+    for split in splits:
         cur = CACHE / f"{split}_candidates.parquet"
-        if cur.exists() and not (V2_DIR / cur.name).exists():
+        if split in ("train", "test") and cur.exists() and not (V2_DIR / cur.name).exists():
             shutil.move(str(cur), str(V2_DIR / cur.name))
         con = connect()
         parts = []

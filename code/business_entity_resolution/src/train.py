@@ -107,6 +107,8 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="2-fold OOF LightGBM matcher")
     ap.add_argument("--tag", default="v1")
     ap.add_argument("--stage2", action="store_true")
+    ap.add_argument("--train-split", default="train", help="feature split used for training / OOF (e.g. trainD)")
+    ap.add_argument("--drop", default="", help="comma-separated features to exclude")
     args = ap.parse_args()
     rp = run_paths(args.tag)
     PRED_DIR, PARTS_DIR, MODEL_DIR = rp["preds"], rp["parts"], rp["models"]
@@ -119,8 +121,11 @@ def main() -> None:
         d.mkdir(parents=True, exist_ok=True)
     s1_idx, half = s1_halves()
     n_s1 = int(s1_idx.max()) + 1
-    tr_parts, te_parts = feature_parts("train"), feature_parts("test")
-    feats = [c for c in read_part("train", tr_parts[0][0], tr_parts[0][1]).columns if c not in ID_COLS]
+    tr_parts, te_parts = feature_parts(args.train_split), feature_parts("test")
+    drop = {f for f in args.drop.split(",") if f}
+    feats = [c for c in read_part("train", tr_parts[0][0], tr_parts[0][1]).columns if c not in ID_COLS and c not in drop]
+    if drop:
+        log(f"dropping {len(drop)} features: {sorted(drop)}")
     log(f"{len(feats)} features, {len(tr_parts)} train parts, {len(te_parts)} test parts")
 
     fold_stats, models, oof_frames = [], [], []
