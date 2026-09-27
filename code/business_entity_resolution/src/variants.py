@@ -28,7 +28,7 @@ from .eda import md_table
 from .io_utils import PROJECT_ROOT, write_id_lists
 from .submit import id_arrays
 
-STAGE_TAGS = {"s1": "v3s1", "s2": "v3s2"}  # run tags of the slim-candidate stage-1 / stage-2 models
+STAGE_TAGS = {"s1": "v3s1", "s2": "v3s2", "D": "D"}  # run tags: slim stage 1 / stage 2 / stage 1 trained on the test-like world
 # name -> (stage, gamma, {country: gamma override})
 VARIANTS = {
     "04_s2_g15": ("s2", 1.5, {}),
@@ -37,6 +37,7 @@ VARIANTS = {
     "04_s1_g15": ("s1", 1.5, {}),
     "04_s1_g20": ("s1", 2.0, {}),
     "04_s2_g15_fr25": ("s2", 1.5, {"France": 2.5}),
+    "07_D_g15": ("D", 1.5, {}),
 }
 
 
@@ -54,7 +55,11 @@ def decide_variant(p: np.ndarray, s1: np.ndarray, src: np.ndarray, idx: np.ndarr
 
 
 def validate(folder: Path) -> tuple[int, str]:
-    """Official validator with --check-ids."""
+    """Official validator with --check-ids (skipped with a warning when utils/ is missing)."""
+    if not (PROJECT_ROOT / "utils" / "validate_submission.py").exists():
+        msg = "WARNING: utils/validate_submission.py not found - validation skipped (put the challenge's utils/ next to code/)"
+        print(msg, flush=True)
+        return 0, msg
     r = subprocess.run([sys.executable, "utils/validate_submission.py",
                         "--matching", str(folder / "matching_results.tsv"),
                         "--candidate", str(folder / "candidate_pairs.tsv"),

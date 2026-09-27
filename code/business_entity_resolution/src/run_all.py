@@ -1,9 +1,9 @@
 """End-to-end pipeline: raw dataset -> output/matching_results.tsv + output/candidate_pairs.tsv.
 
 Usage (from code/business_entity_resolution/):
-    python -m src.run_all --variant 04_s2_g15            # full run (~8-9 h on a 16 GB / 16-thread laptop)
-    python -m src.run_all --variant 04_s2_g15 --dry-run  # list the steps only
-    python -m src.run_all --variant 04_s2_g15 --from-step features   # resume
+    python -m src.run_all                                # full run, default --variant 04_s1_g15 (~4 h of measured steps)
+    python -m src.run_all --variant 04_s1_g15 --dry-run  # list the steps only
+    python -m src.run_all --variant 04_s1_g15 --from-step features   # resume
 
 Steps (each is a module that can also be run on its own):
     translit   learn the Indic token dictionary + native-state map from train pairs
@@ -12,9 +12,8 @@ Steps (each is a module that can also be run on its own):
     pruner     learned pruner: train, score every pair, rank, choose (k, K), prune
     slim       slim candidates (pruner p >= tau, S1 top-15, record top-3); tau from artifacts/slim.json
     features   pair features for every candidate
-    stage1     2-fold out-of-fold LightGBM (run tag v3s1)
-    stage2f    stage-2 group-consistency features (train OOF p; fold-consistent test p)
-    stage2     2-fold stage-2 LightGBM (run tag v3s2)
+    stage1     2-fold out-of-fold LightGBM (run v3s1, or run D on the test-like world)
+    testlike   (D variants) test-like world: 19% of train S1 dropped per country, features rebuilt
     output     decision layer of --variant -> output/ (+ official validator)
 """
 
@@ -32,24 +31,35 @@ OUTPUT = PROJECT_ROOT / "output"
 
 
 def steps(variant: str) -> list[tuple[str, list[list[str]]]]:
-    """(name, module command lines) in execution order."""
-    return [
+    """(name, module command lines) in execution order for a stage-1 variant.
+
+    ``s1`` variants train the slim stage-1 model (run v3s1); ``D`` variants build the test-like
+    world (19% of train S1 dropped per country, everything S1/candidate-dependent rebuilt) and
+    train stage 1 on it (run D), exactly as in Task 6. Stage 2 is not part of the final pipeline.
+    """
+    stage = VARIANTS[variant][0]
+    if stage not in ("s1", "D"):
+        raise SystemExit(f"{variant}: only stage-1 variants (s1 / D) are supported by run_all")
+    plan = [
         ("translit", [["src.translit"]]),
         ("normalize", [["src.normalize", "--split", "train"], ["src.normalize", "--split", "test"]]),
         ("blocking", [["src.blocking", "generate", "--split", "train"], ["src.blocking", "generate", "--split", "test"]]),
         ("pruner", [["src.pruner", s] for s in ("train", "score", "rank", "grid", "prune")]),
         ("slim", [["src.slim", "apply"]]),
         ("features", [["src.features", "--split", "train"], ["src.features", "--split", "test"]]),
-        ("stage1", [["src.train", "--tag", "v3s1"]]),
-        ("stage2f", [["src.stage2", "--p-tag", "v3s1"]]),
-        ("stage2", [["src.train", "--tag", "v3s2", "--stage2"]]),
-        ("output", [["src.variants", "--only", variant, "--out", str(OUTPUT)]]),
     ]
+    if stage == "s1":
+        plan.append(("stage1", [["src.train", "--tag", "v3s1"]]))
+    else:
+        plan += [("testlike", [["src.testlike", "build"]]),
+                 ("stage1", [["src.train", "--tag", "D", "--train-split", "trainD"]])]
+    plan.append(("output", [["src.variants", "--only", variant, "--out", str(OUTPUT)]]))
+    return plan
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Run the whole pipeline")
-    ap.add_argument("--variant", default="04_s2_g15", choices=sorted(VARIANTS))
+    ap.add_argument("--variant", default="04_s1_g15", choices=sorted(VARIANTS))
     ap.add_argument("--from-step", default=None, help="resume from this step name")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
