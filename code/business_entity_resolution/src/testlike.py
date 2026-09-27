@@ -55,8 +55,8 @@ TD = "trainD"
 DROP_FRAC = 0.19
 N_DROP = ["r_margin_score", "r_margin_name", "r_margin_addr", "r_oth_score", "r_oth_name", "r_oth_addr",
           "r_n_name90", "rank_r", "rank_r_all", "n_cand_rec", "prank_r", "prank_r_all"]
-MODELS = {"04_s1": "v3s1", "N": "N", "D": "D"}
-NATIVE = {("v3s1", "a"), ("N", "a"), ("D", "b")}  # (run, world) whose train_oof.parquet already is that world
+MODELS = {"04_s1": "v3s1", "N": "N", "D": "D", "D2": "D2"}  # D2: master task 2b
+NATIVE = {("v3s1", "a"), ("N", "a"), ("D", "b"), ("D2", "b")}  # (run, world) whose train_oof.parquet already is that world
 WORLD_SPLIT = {"a": "train", "b": TD}
 GAMMAS = [1.0, 1.5, 2.0, 2.5, 3.0]
 OUT = CACHE / "testlike"

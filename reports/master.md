@@ -1,0 +1,72 @@
+# Master task: diagnostics, collective smoothing, final 07 submissions
+
+## 1a. Data audit (train)
+
+(i) Train-test overlap (test rows whose values exactly equal a train row of the same source):
+
+| source | test rows | raw (name, address) | normalised (name_core, addr_core) |
+|---|---|---|---|
+| S1 | 1,732,544 | 0.000% | 0.000% |
+| S2 | 4,887,273 | 0.000% | 0.313% |
+| S3 | 5,082,316 | 0.000% | 0.362% |
+
+(ii) Link tokens removed by our cleaning (all sources; same value + same country):
+
+| token | records | same-value pairs | precision (same S1 entity) | coverage (multi-record entities) |
+|---|---|---|---|---|
+| phone (>=7 digits) | 505,946 | 851,436 | 0.4648 | 4.053% |
+| (ID: n) tag | 30,924 | 2,581 | 0.0000 | 0.000% |
+| #tag | 33,124 | 411,625 | 0.0058 | 0.026% |
+| @handle | 32,079 | 28,100 | 0.0037 | 0.005% |
+| web domain | 412,008 | 899,943 | 0.0213 | 0.854% |
+
+(iii) Strict record-to-record links within the same source (S2 or S3) and country; coverage = share of same-entity same-source record pairs captured; last column = 04_s1 (gamma 1.5) OOF false negatives linked to a record accepted for the correct S1 (of 236,521 false negatives; 254,909 further true pairs are not in the candidates):
+
+| rule | linked pairs | precision | coverage | linked false negatives |
+|---|---|---|---|---|
+| name_core+addr_core | 1,009,109 | 0.9985 | 17.792% | 5,355 |
+| raw name | 8,482,809 | 0.0312 | 4.671% | 8,066 |
+| raw address | 1,320,331 | 0.7318 | 17.062% | 13,045 |
+| name_core, both addr empty | 73,953 | 0.0773 | 0.101% | 23 |
+
+## 1b. Adversarial validation (train vs test pair features)
+
+**US+India** test pairs vs train pairs: AUC **0.7705** (1,000,000 test pairs). Top 15 features:
+
+| feature | gain | train mean | test mean |
+|---|---|---|---|
+| chain_s | 494,596 | 20.5557 | 14.6026 |
+| n_cand_s1 | 382,479 | 5.3044 | 6.0872 |
+| addr_ntok_s | 115,490 | 7.3588 | 8.2963 |
+| pscore | 107,268 | 0.7464 | 0.6767 |
+| rank_s_all | 90,921 | 16.6207 | 15.2553 |
+| prank_s | 76,300 | 3.1555 | 3.5456 |
+| house_logdiff | 72,385 | 1.2533 | 1.4631 |
+| prank_s_all | 59,948 | 3.1775 | 3.5708 |
+| chain_r | 53,662 | 14.0976 | 10.0893 |
+| s_rank_addr | 49,843 | 2.3620 | 2.7743 |
+| name_ntok_s | 48,037 | 2.5149 | 2.4350 |
+| rank_s | 41,107 | 3.1534 | 3.5450 |
+| name_cov_r | 41,077 | 0.8365 | 0.8258 |
+| key_name_pair | 35,656 | 0.6998 | 0.6807 |
+| s_n_near | 33,101 | 3.7540 | 4.2557 |
+
+**France** test pairs vs train pairs: AUC **0.9898** (1,000,000 test pairs). Top 15 features:
+
+| feature | gain | train mean | test mean |
+|---|---|---|---|
+| state_match | 1,151,763 | 0.8648 | 0.2833 |
+| n_cand_s1 | 1,074,399 | 5.3044 | 7.3329 |
+| addr_ntok_s | 886,884 | 7.3588 | 5.7381 |
+| addr_tsort | 650,549 | 83.6034 | 91.1072 |
+| name_ntok_s | 495,253 | 2.5149 | 2.2000 |
+| addr_tsr | 477,751 | 89.8077 | 92.5480 |
+| chain_s | 358,872 | 20.5557 | 18.8972 |
+| addr_ntok_r | 294,472 | 6.4278 | 5.4977 |
+| nkeys | 293,541 | 5.6357 | 4.6373 |
+| house_logdiff | 254,258 | 1.2533 | 0.8772 |
+| key_addr_pair | 195,786 | 0.7729 | 0.7125 |
+| nums_jaccard | 187,807 | 0.5965 | 0.5691 |
+| addr_ratio | 185,353 | 78.7381 | 86.0395 |
+| name_len_diff | 183,576 | 2.2014 | 3.2299 |
+| addr_cov_r | 179,122 | 0.7911 | 0.7923 |
