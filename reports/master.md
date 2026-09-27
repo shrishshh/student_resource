@@ -89,3 +89,10 @@ Collective smoothing groups records of the same S1 and source linked by rules wi
 | D2 | mean | 0.97180 | 0.97113 | 0.97008 | 0.97180 (g 1.0) | 0.97073 | 0.97034 | 0.96944 | 0.97073 (g 1.0) |
 | D2 | median | 0.97180 | 0.97113 | 0.97009 | 0.97180 (g 1.0) | 0.97073 | 0.97035 | 0.96946 | 0.97073 (g 1.0) |
 | D2 | maxif | 0.97182 | 0.97118 | 0.97018 | 0.97182 (g 1.0) | 0.97075 | 0.97039 | 0.96954 | 0.97075 (g 1.0) |
+
+## 3. Final submissions
+
+| submission | test matches | mean set size France | mean set size India | mean set size US | validator |
+|---|---|---|---|---|---|
+| 07_D_g10 | 5,778,970 | 3.405 | 3.294 | 3.359 | PASS |
+| 07_D_g15 | 5,717,272 | 3.375 | 3.252 | 3.329 | PASS |
