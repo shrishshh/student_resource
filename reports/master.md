@@ -96,3 +96,9 @@ Collective smoothing groups records of the same S1 and source linked by rules wi
 |---|---|---|---|---|---|
 | 07_D_g10 | 5,778,970 | 3.405 | 3.294 | 3.359 | PASS |
 | 07_D_g15 | 5,717,272 | 3.375 | 3.252 | 3.329 | PASS |
+
+## Findings summary
+
+- **1a**: no train-test overlap (raw 0.000-0.0004%, normalised <= 0.36% per source), so no overlap rule. None of the removed link tokens is a usable key (phone-like runs 46% precise, domains 2%, #tags / @handles / ID tags ~0%). Of the strict same-source rules only identical name_core + addr_core qualifies (99.85% precise, 17.8% of same-entity same-source pairs); it links only 5,355 of 236,521 false negatives of 04_s1 (gamma 1.5) to an accepted true record, which is why collective smoothing adds at most +0.00008.
+- **1b**: US+India test pairs are separable from train pairs with AUC 0.77, driven by candidate/S1-set structure (chain_s 20.6 -> 14.6, n_cand_s1 5.3 -> 6.1, pscore 0.75 -> 0.68), consistent with the test-like world. France is almost perfectly separable (AUC 0.99), led by **state_match: 36% of France pairs have no state on one side (5% in train)** because ~35% of France S2/S3 addresses carry only street + city (e.g. "31 AV. GILARD, NANTES"). A city -> region table learned unsupervised from the test S1 addresses (which always carry city and region) would fill most of these; not done here because it cannot be validated before the deadline.
+- **2b**: removing the top-5 shifted features (D2) lost 0.0009 in the normal world and 0.0008 in the test-like world vs D, so it was not selected.
